@@ -1,0 +1,87 @@
+name: CalcOS CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test-windows:
+    name: Windows MSVC Build + Unit Tests
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run Parser Tests
+        run: .\build\bin\Release\test_parse.exe
+
+      - name: Run Plugin System Tests
+        run: .\build\bin\Release\test_plugin_system.exe
+
+      - name: Run Complex Math Tests
+        run: .\build\bin\Release\test_complex_calc.exe
+
+      - name: Run Benchmark Suite
+        run: .\build\bin\Release\test_benchmark.exe
+
+  build-linux:
+    name: Linux GCC Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get install -y cmake build-essential nasm
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Run Parser Tests
+        run: ./build/bin/test_parse
+
+      - name: Run Plugin System Tests
+        run: ./build/bin/test_plugin_system
+
+  assemble-bootloader:
+    name: Assemble Boot Sector (NASM)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install NASM
+        run: sudo apt-get install -y nasm
+
+      - name: Assemble BootEntry
+        run: nasm -f bin Bootloader/Boot/BootEntry.asm -o build/boot.bin
+
+      - name: Verify boot signature
+        run: |
+          SIGNATURE=$(xxd -s 510 -l 2 build/boot.bin | awk '{print $2$3}')
+          if [ "$SIGNATURE" = "55aa" ]; then
+            echo "Boot signature OK: 0x55AA"
+          else
+            echo "Boot signature MISSING: got $SIGNATURE"
+            exit 1
+          fi
+
+      - name: Upload boot image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: boot-bin
+          path: build/boot.bin

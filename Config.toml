@@ -1,0 +1,18 @@
+# Bare Metal Calculator Project Configuration
+
+[project]
+name = "bare-metal-calculator"
+version = "0.1.0"
+authors = ["W. Kowal"]
+edition = "2026"
+
+[build]
+target = "x86_64-elf"
+linker_script = "linker.ld"
+opt_level = 3
+
+[qemu]
+memory = "512M"
+vga = "std"
+debug_port = 1234
+freeze_on_startup = true
