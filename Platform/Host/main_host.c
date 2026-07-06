@@ -31,7 +31,16 @@
 #include "../../include/calc/input.h"
 #include "../../include/calc/ui.h"
 #include "../../Application/UI/ui_core.h"
-#include "../../Application/Input/Parser.h"
+/* ═══ KERNEL SERVICE LOCATOR ═══
+ * Instead of directly including every module header, modules
+ * access each other through the Kernel by service ID lookup.
+ * This breaks the compile-time coupling spaghetti. */
+#include "../../Kernel/Kernel.h"
+#include "../../Kernel/API/ParserAPI.h"
+#include "../../Kernel/API/FormatterAPI.h"
+#include "../../Kernel/API/HistoryAPI.h"
+#include "../../Kernel/API/StackAPI.h"
+#include "../../Kernel/API/LoggerAPI.h"
 #include "../../Kernel/State/CalculatorState.h"
 #include "../../Kernel/Core/CPU/CPUID.h"
 #include "../../Infrastructure/Utils/MemoryUtils.h"
@@ -257,6 +266,37 @@ int main(int argc, char* argv[]) {
         fprintf(stderr, "Failed to initialize display/input driver (err=%d)\n", created);
         fprintf(stderr, "Try --term for terminal mode.\n");
         return 1;
+    }
+
+    /* ══════════════════════════════════════════════════════
+     * KERNEL BOOT — Initialize service locator & register all services
+     * ══════════════════════════════════════════════════════ */
+    extern const ParserAPI g_parser_service;
+    extern const FormatterAPI g_formatter_service;
+    extern const HistoryAPI g_history_service;
+    extern const StackAPI g_stack_service;
+
+    /* The global Kernel `g_kernel` (declared in Kernel.h as `K`) is a
+     * convenience for freestanding bare-metal builds. In this host app,
+     * we initialize it and register every stateful service. */
+    kernel_init(K, &state.calc);
+
+    kernel_register(K, KRN_PARSER, "parser", (void*)&g_parser_service);
+    kernel_register(K, KRN_FORMATTER, "formatter", (void*)&g_formatter_service);
+    kernel_register(K, KRN_HISTORY, "history", (void*)&g_history_service);
+    kernel_register(K, KRN_OPERAND_STACK, "stack", (void*)&g_stack_service);
+    kernel_register(K, KRN_DISPLAY, "display", (void*)&state.display);
+    kernel_register(K, KRN_INPUT, "input", (void*)&state.input);
+
+    /* Detect and register CPU features */
+    CPUFeatures cpu_features;
+    fast_memset(&cpu_features, 0, sizeof(cpu_features));
+    cpu_detect_features(&cpu_features);
+    kernel_register(K, KRN_CPU_FEATURES, "cpufeatures", (void*)&cpu_features);
+
+    /* Activate all registered services */
+    for (uint32_t i = 0; i < KRN_COUNT; ++i) {
+        kernel_activate(K, (KernelServiceId)i);
     }
 
     driver.name = "Host UI";

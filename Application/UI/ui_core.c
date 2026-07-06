@@ -18,7 +18,13 @@
  */
 
 #include "../../include/calc/ui.h"
-#include "../Input/Parser.h"
+/* Service locator replaces direct module includes — stable proxy pattern */
+#include "../../Kernel/Kernel.h"
+#include "../../Kernel/API/ParserAPI.h"
+#include "../../Kernel/API/FormatterAPI.h"
+#include "../../Kernel/API/StackAPI.h"
+/* Formatter is a pure utility (no state). Direct call is fine;
+ * the Kernel service locator pattern is for stateful/pluggable services. */
 #include "../Output/Formatter.h"
 #include "../../Infrastructure/Utils/MemoryUtils.h"
 
@@ -79,7 +85,14 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
 
             bool success = false;
             calc->flags = 0;
-            double result = parse_expression(ctx->buffer, calc, &success);
+            /* Kernel service locator: parser via KRN_PARSER */
+            double result = 0.0;
+            ParserAPI* parser = (ParserAPI*)kernel_get(K, KRN_PARSER);
+            if (parser) {
+                result = parser->parse(ctx->buffer, calc, &success);
+            } else {
+                success = false;
+            }
 
             // Add to history
             if (ctx->history_count < UI_HISTORY_LINES) {

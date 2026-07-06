@@ -9,7 +9,7 @@
 ;
 ; THE FLEX: Without these stubs, any hardware exception = triple fault.
 ; With these stubs, we get a full register dump and an error message.
-; That's the difference between a QEMU demo and real hardware. 💀
+; That's the difference between a QEMU demo and real hardware. 
 
 [BITS 64]
 [SECTION .text]
@@ -50,13 +50,13 @@
     ;   CPU pushed: RIP(8) + CS(8) + RFLAGS(8) = 24 bytes
     ;   We pushed: push 0(8) + 15 GPRs(120) + push %1(8) + push rdi(8) = 144 bytes
     ;   Total before call: 24 + 144 = 168 = same as above → aligned after call! ✓
-    ; No padding needed — removing the old sub rsp,8 was the real fix. 😤
+    ; No padding needed — removing the old sub rsp,8 was the real fix. 
     
     mov rdi, rsp                ; RDI = pointer to RegDump struct
     push %1                     ; Push the vector number
     push rdi                    ; Push pointer again (stack trace context)
     ; RDI still points to rax — no adjustment needed.
-    ; The two pushes went BELOW the GPR save area, so RDI stays valid. 💀
+    ; The two pushes went BELOW the GPR save area, so RDI stays valid. 
     
     extern exception_handler
     call exception_handler
