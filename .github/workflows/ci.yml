@@ -68,7 +68,9 @@ jobs:
         run: sudo apt-get install -y nasm
 
       - name: Assemble BootEntry
-        run: nasm -f bin Bootloader/Boot/BootEntry.asm -o build/boot.bin
+        run: |
+          mkdir -p build
+          nasm -f bin Bootloader/Boot/BootEntry.asm -o build/boot.bin
 
       - name: Verify boot signature
         run: |
