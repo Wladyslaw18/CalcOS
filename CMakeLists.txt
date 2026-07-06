@@ -25,6 +25,8 @@ option(CALC_TINY_MEM "Compile for ultra-low-memory environments (16KB/24KB/32KB)
 # glob source and headers for the calc library. explicit lists would be better but
 # this codebase has too many files to enumerate. at least it's consistent.
 file(GLOB_RECURSE KERNEL_SOURCES
+    "Kernel/*.c"
+    "Kernel/Adapters/*.c"
     "Kernel/Core/*.c"
     "Kernel/Operations/*.c"
     "Kernel/State/*.c"
@@ -51,6 +53,9 @@ set(CALC_SOURCES
 )
 
 file(GLOB_RECURSE KERNEL_HEADERS
+    "Kernel/*.h"
+    "Kernel/Adapters/*.h"
+    "Kernel/API/*.h"
     "Kernel/Core/*.h"
     "Kernel/Operations/*.h"
     "Kernel/State/*.h"
@@ -105,6 +110,7 @@ foreach(target calc_static calc_shared)
 
     # warnings: W3 on MSVC (W4 breaks third-party headers). Wall+Wextra+Werror on GCC/Clang.
     # -O3: let the compiler do its job. the SIMD dispatch is the bottleneck anyway.
+    if(MSVC)
         target_compile_options(${target} PRIVATE /W3 /wd4100 /wd4210)
     else()
         target_compile_options(${target} PRIVATE -Wall -Wextra -Werror -O3)
@@ -222,4 +228,3 @@ if(CALC_TINY_MEM)
         endif()
     endforeach()
 endif()
-
