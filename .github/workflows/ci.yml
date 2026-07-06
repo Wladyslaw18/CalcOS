@@ -19,7 +19,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release --verbose 2>&1
 
       - name: Run Parser Tests
         run: .\build\bin\Release\test_parse.exe
@@ -48,7 +48,7 @@ jobs:
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build --config Release
+        run: cmake --build build --config Release --verbose 2>&1
 
       - name: Run Parser Tests
         run: ./build/bin/test_parse
@@ -74,7 +74,7 @@ jobs:
 
       - name: Verify boot signature
         run: |
-          SIGNATURE=$(xxd -s 510 -l 2 build/boot.bin | awk '{print $2$3}')
+          SIGNATURE=$(xxd -p -s 510 -l 2 build/boot.bin)
           if [ "$SIGNATURE" = "55aa" ]; then
             echo "Boot signature OK: 0x55AA"
           else
