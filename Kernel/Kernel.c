@@ -12,6 +12,12 @@
  */
 
 #include "Kernel.h"
+
+/* ─── Global Kernel instance ─── */
+/* The extern declaration lives in Kernel.h alongside the `K` convenience macro.
+ * This is the ONE definition. Every call to kernel_get(K, ...) resolves here. */
+Kernel g_kernel;
+
 #include "API/ParserAPI.h"
 #include "API/LoggerAPI.h"
 #include "API/DisplayAPI.h"
