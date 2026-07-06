@@ -5,28 +5,13 @@
  */
 
 #include "Statistics.h"
+#include "../../../Infrastructure/Utils/MathUtils.h"
 #include <stdbool.h>
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
 #include <immintrin.h>
 #define COMPILER_X86
 #endif
-
-// sqrt via Newton, seeded from exponent halving
-static inline double custom_sqrt(double x) {
-    if (x <= 0.0) return 0.0;
-    union { double d; uint64_t i; } u;
-    u.d = x;
-    int exp = (int)((u.i >> 52) & 0x7FF) - 1023;
-    int new_exp = (exp / 2) + 1023;
-    u.i = (u.i & 0x800FFFFFFFFFFFFFULL) | ((uint64_t)new_exp << 52);
-    double val = u.d;
-    val = 0.5 * (val + x / val);
-    val = 0.5 * (val + x / val);
-    val = 0.5 * (val + x / val);
-    val = 0.5 * (val + x / val);
-    return val;
-}
 
 double calc_mean(const double* arr, uint32_t len) {
     if (len == 0 || !arr) return 0.0;
@@ -231,8 +216,192 @@ double calc_correlation(const double* x_arr, const double* y_arr, uint32_t len) 
     if (var_x <= 0.0 || var_y <= 0.0) return 0.0;
     
     double cov = calc_covariance(x_arr, y_arr, len);
-    double std_dev_x = custom_sqrt(var_x);
-    double std_dev_y = custom_sqrt(var_y);
+    double std_dev_x = math_sqrt(var_x);
+    double std_dev_y = math_sqrt(var_y);
     
     return cov / (std_dev_x * std_dev_y);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * calc_percentile — p-th percentile via linear interpolation
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Copies up to 256 elements to a stack buffer to preserve the caller's array;
+ * for larger arrays the sort is done in-place (caller must allow mutation).
+ * Linear interpolation: result = sorted[lo] + frac * (sorted[hi] - sorted[lo])
+ */
+double calc_percentile(double* arr, uint32_t len, double p) {
+    if (!arr || len == 0) return 0.0;
+
+    // Clamp p to [0, 100]
+    if (p < 0.0)   p = 0.0;
+    if (p > 100.0) p = 100.0;
+
+    double stack_buf[256];
+    double* target;
+    if (len <= 256) {
+        for (uint32_t i = 0; i < len; i++) stack_buf[i] = arr[i];
+        target = stack_buf;
+    } else {
+        target = arr;
+    }
+    quicksort(target, 0, (int32_t)len - 1);
+
+    // Map p into a 0-based floating index
+    double index = (p / 100.0) * (double)(len - 1);
+    uint32_t lo  = (uint32_t)index;
+    uint32_t hi  = lo + 1;
+    double   frac = index - (double)lo;
+
+    if (hi >= len) return target[len - 1]; // p == 100 or single element
+    return target[lo] + frac * (target[hi] - target[lo]);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * calc_skewness — Pearson's sample skewness
+ * ═══════════════════════════════════════════════════════════════════════════
+ * g1 = (1/n * Σ(xi - x̄)³) / s³
+ * where s is the sample standard deviation (sqrt of sample variance).
+ * Returns math_nan() for len < 3.
+ */
+double calc_skewness(const double* arr, uint32_t len) {
+    if (!arr || len < 3) return math_nan();
+
+    double mean = calc_mean(arr, len);
+    double var  = calc_variance(arr, len);   // sample variance (÷ n-1)
+    if (var <= 0.0) return 0.0;              // constant array → skewness = 0
+
+    double stddev     = math_sqrt(var);
+    double stddev3    = stddev * stddev * stddev;
+    double sum_cube   = 0.0;
+    uint32_t i        = 0;
+
+#if defined(COMPILER_X86)
+#if defined(USE_AVX2) && USE_AVX2
+    __m256d vmean      = _mm256_set1_pd(mean);
+    __m256d vsum_cube  = _mm256_setzero_pd();
+    for (; i + 3 < len; i += 4) {
+        __m256d val  = _mm256_loadu_pd(&arr[i]);
+        __m256d diff = _mm256_sub_pd(val, vmean);
+        __m256d d2   = _mm256_mul_pd(diff, diff);
+        __m256d d3   = _mm256_mul_pd(d2,   diff);
+        vsum_cube    = _mm256_add_pd(vsum_cube, d3);
+    }
+    double temp[4];
+    _mm256_storeu_pd(temp, vsum_cube);
+    sum_cube += temp[0] + temp[1] + temp[2] + temp[3];
+#elif defined(USE_SSE2) && USE_SSE2
+    __m128d vmean      = _mm_set1_pd(mean);
+    __m128d vsum_cube  = _mm_setzero_pd();
+    for (; i + 1 < len; i += 2) {
+        __m128d val  = _mm_loadu_pd(&arr[i]);
+        __m128d diff = _mm_sub_pd(val, vmean);
+        __m128d d2   = _mm_mul_pd(diff, diff);
+        __m128d d3   = _mm_mul_pd(d2,   diff);
+        vsum_cube    = _mm_add_pd(vsum_cube, d3);
+    }
+    double temp[2];
+    _mm_storeu_pd(temp, vsum_cube);
+    sum_cube += temp[0] + temp[1];
+#endif
+#endif
+
+    for (; i < len; ++i) {
+        double diff = arr[i] - mean;
+        sum_cube += diff * diff * diff;
+    }
+
+    double moment3 = sum_cube / (double)len;
+    return moment3 / stddev3;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * calc_kurtosis — Excess kurtosis (Fisher's definition)
+ * ═══════════════════════════════════════════════════════════════════════════
+ * g2 = (1/n * Σ(xi - x̄)⁴) / variance² - 3
+ * Normal distribution → 0.  Returns math_nan() for len < 4.
+ */
+double calc_kurtosis(const double* arr, uint32_t len) {
+    if (!arr || len < 4) return math_nan();
+
+    double mean = calc_mean(arr, len);
+    double var  = calc_variance(arr, len);   // sample variance (÷ n-1)
+    if (var <= 0.0) return 0.0;              // constant array → kurtosis = 0 (excess)
+
+    double var2      = var * var;
+    double sum_quart = 0.0;
+    uint32_t i       = 0;
+
+#if defined(COMPILER_X86)
+#if defined(USE_AVX2) && USE_AVX2
+    __m256d vmean       = _mm256_set1_pd(mean);
+    __m256d vsum_quart  = _mm256_setzero_pd();
+    for (; i + 3 < len; i += 4) {
+        __m256d val  = _mm256_loadu_pd(&arr[i]);
+        __m256d diff = _mm256_sub_pd(val, vmean);
+        __m256d d2   = _mm256_mul_pd(diff, diff);
+        __m256d d4   = _mm256_mul_pd(d2,   d2);
+        vsum_quart   = _mm256_add_pd(vsum_quart, d4);
+    }
+    double temp[4];
+    _mm256_storeu_pd(temp, vsum_quart);
+    sum_quart += temp[0] + temp[1] + temp[2] + temp[3];
+#elif defined(USE_SSE2) && USE_SSE2
+    __m128d vmean       = _mm_set1_pd(mean);
+    __m128d vsum_quart  = _mm_setzero_pd();
+    for (; i + 1 < len; i += 2) {
+        __m128d val  = _mm_loadu_pd(&arr[i]);
+        __m128d diff = _mm_sub_pd(val, vmean);
+        __m128d d2   = _mm_mul_pd(diff, diff);
+        __m128d d4   = _mm_mul_pd(d2,   d2);
+        vsum_quart   = _mm_add_pd(vsum_quart, d4);
+    }
+    double temp[2];
+    _mm_storeu_pd(temp, vsum_quart);
+    sum_quart += temp[0] + temp[1];
+#endif
+#endif
+
+    for (; i < len; ++i) {
+        double diff = arr[i] - mean;
+        double d2   = diff * diff;
+        sum_quart  += d2 * d2;
+    }
+
+    double moment4 = sum_quart / (double)len;
+    return (moment4 / var2) - 3.0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * calc_linear_regression — Ordinary Least Squares
+ * ═══════════════════════════════════════════════════════════════════════════
+ * slope     = cov(x, y) / var(x)
+ * intercept = mean(y) - slope * mean(x)
+ *
+ * Degenerate case (var(x) == 0): slope = 0, intercept = mean(y).
+ * Either output pointer may be NULL to skip that output.
+ */
+void calc_linear_regression(const double* x, const double* y, uint32_t n,
+                             double* slope, double* intercept) {
+    if (!x || !y || n == 0) {
+        if (slope)     *slope     = 0.0;
+        if (intercept) *intercept = 0.0;
+        return;
+    }
+
+    double mean_x = calc_mean(x, n);
+    double mean_y = calc_mean(y, n);
+    double var_x  = calc_variance(x, n);
+
+    if (var_x == 0.0) {
+        // Degenerate: all x values identical → vertical cloud, no defined slope
+        if (slope)     *slope     = 0.0;
+        if (intercept) *intercept = mean_y;
+        return;
+    }
+
+    double cov_xy = calc_covariance(x, y, n);
+    double s      = cov_xy / var_x;
+
+    if (slope)     *slope     = s;
+    if (intercept) *intercept = mean_y - s * mean_x;
 }

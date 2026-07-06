@@ -71,4 +71,28 @@ bool calc_solve_linear(const double* A, const double* b, uint32_t dim, double* x
 // Returns true on success, false on failure or linearly dependent columns.
 bool calc_least_squares(const double* A, const double* b, uint32_t rows, uint32_t cols, double* x);
 
+// Computes the trace of a square matrix A (dim x dim): sum of diagonal elements.
+// Returns false if dim > MAX_MATRIX_DIM, dim == 0, or arguments are invalid.
+bool calc_matrix_trace(const double* A, uint32_t dim, double* result);
+
+// Power iteration: finds the DOMINANT eigenpair (largest |eigenvalue|) of A (dim x dim).
+// Initialisation seed: column sums of A (deterministic, no RNG needed).
+// Each iteration computes v_new = A*v, normalises v_new, then evaluates the Rayleigh
+// quotient for the eigenvalue estimate.  Converges when |lambda_new - lambda_old| < 1e-9
+// or max_iter iterations are exhausted.  Pass max_iter = 0 to use the default (200).
+// out_eigenvec: dim-sized normalised eigenvector.  out_eigenval: scalar eigenvalue.
+// Returns false if dim > MAX_MATRIX_DIM, dim == 0, or A / out pointers are NULL.
+bool calc_matrix_power_iteration(const double* A, uint32_t dim,
+                                 double* out_eigenvec, double* out_eigenval,
+                                 uint32_t max_iter);
+
+// QR iteration for ALL eigenvalues of a SYMMETRIC real matrix A (dim x dim).
+// IMPORTANT: Results are only correct for symmetric matrices (A == A^T).
+// Algorithm: iteratively factorises Ak = Q*R then forms Ak+1 = R*Q.
+// A Wilkinson shift (last diagonal element) is applied before each QR step for
+// faster convergence.  Converges when all off-diagonal elements < 1e-9, or after
+// 100 outer iterations.  On exit, eigenvalues[] contains the diagonal of Ak.
+// Returns false if dim > MAX_MATRIX_DIM, dim == 0, or arguments are invalid.
+bool calc_matrix_eigenvalues_symmetric(const double* A, uint32_t dim, double* eigenvalues);
+
 #endif // LINEAR_ALGEBRA_H

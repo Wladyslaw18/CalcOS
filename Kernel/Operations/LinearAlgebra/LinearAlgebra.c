@@ -5,6 +5,7 @@
  */
 
 #include "LinearAlgebra.h"
+#include "../../Infrastructure/Utils/MathUtils.h"
 
 // Abs helper since cannot use math.h
 static inline double absolute_val(double v) {
@@ -469,5 +470,244 @@ bool calc_least_squares(const double* A, const double* b, uint32_t rows, uint32_
         x[i] = (d[i] - sum) / R[i * cols + i];
     }
 
+    return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calc_matrix_trace
+// ─────────────────────────────────────────────────────────────────────────────
+// Returns the sum of the main-diagonal elements of a square dim×dim matrix A.
+// This equals the sum of all eigenvalues and is used to sanity-check eigenvalue
+// decompositions (trace(A) == sum of eigenvalues for any diagonalisable matrix).
+bool calc_matrix_trace(const double* A, uint32_t dim, double* result) {
+    if (dim > MAX_MATRIX_DIM || dim == 0 || !A || !result) {
+        return false;
+    }
+
+    double tr = 0.0;
+    for (uint32_t i = 0; i < dim; ++i) {
+        tr += A[i * dim + i];
+    }
+    *result = tr;
+    return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calc_matrix_power_iteration
+// ─────────────────────────────────────────────────────────────────────────────
+// Finds the DOMINANT eigenpair (largest absolute eigenvalue) of a dim×dim matrix
+// using the power iteration method.
+//
+// Seed strategy (deterministic, no RNG):
+//   v[j] = sum of column j of A.  This gives a non-trivial starting vector for
+//   most practical matrices, including symmetric positive-definite ones.
+//
+// Per iteration:
+//   1. w = A * v           (matrix–vector product)
+//   2. v = w / ||w||       (normalise to prevent overflow)
+//   3. lambda = v^T A v    (Rayleigh quotient — converges faster than ||w||/||v||)
+//
+// Convergence: |lambda_new - lambda_old| < 1e-9, or max_iter reached.
+bool calc_matrix_power_iteration(const double* A, uint32_t dim,
+                                 double* out_eigenvec, double* out_eigenval,
+                                 uint32_t max_iter) {
+    if (dim > MAX_MATRIX_DIM || dim == 0 || !A || !out_eigenvec || !out_eigenval) {
+        return false;
+    }
+
+    // Use default iteration count when caller passes 0.
+    if (max_iter == 0) {
+        max_iter = 200;
+    }
+
+    // --- Step 1: Seed vector = column sums of A (deterministic) ---
+    double v[MAX_MATRIX_DIM];    // current iterate
+    double w[MAX_MATRIX_DIM];    // workspace for A*v
+
+    for (uint32_t j = 0; j < dim; ++j) {
+        double col_sum = 0.0;
+        for (uint32_t i = 0; i < dim; ++i) {
+            col_sum += A[i * dim + j];
+        }
+        v[j] = col_sum;
+    }
+
+    // Normalise the seed vector so we start with a unit vector.
+    double seed_norm_sq = 0.0;
+    for (uint32_t j = 0; j < dim; ++j) {
+        seed_norm_sq += v[j] * v[j];
+    }
+    double seed_norm = math_sqrt(seed_norm_sq);
+
+    // Fallback seed: e_0 = [1, 0, 0, …] if column sums are all zero.
+    if (seed_norm < 1e-12) {
+        for (uint32_t j = 0; j < dim; ++j) {
+            v[j] = (j == 0) ? 1.0 : 0.0;
+        }
+    } else {
+        for (uint32_t j = 0; j < dim; ++j) {
+            v[j] /= seed_norm;
+        }
+    }
+
+    double eigenval_old = 0.0;
+
+    // --- Step 2: Power iteration loop ---
+    for (uint32_t iter = 0; iter < max_iter; ++iter) {
+
+        // w = A * v
+        for (uint32_t i = 0; i < dim; ++i) {
+            double sum = 0.0;
+            for (uint32_t j = 0; j < dim; ++j) {
+                sum += A[i * dim + j] * v[j];
+            }
+            w[i] = sum;
+        }
+
+        // Normalise w → v_new.  ||w|| is the raw eigenvalue estimate,
+        // but we use the Rayleigh quotient below for a better estimate.
+        double norm_sq = 0.0;
+        for (uint32_t i = 0; i < dim; ++i) {
+            norm_sq += w[i] * w[i];
+        }
+        double norm = math_sqrt(norm_sq);
+
+        if (norm < 1e-15) {
+            // w is the zero vector — A*v = 0, eigenvalue is 0.
+            for (uint32_t j = 0; j < dim; ++j) {
+                out_eigenvec[j] = v[j];
+            }
+            *out_eigenval = 0.0;
+            return true;
+        }
+
+        for (uint32_t i = 0; i < dim; ++i) {
+            v[i] = w[i] / norm;
+        }
+
+        // Rayleigh quotient: lambda = v^T * A * v = v^T * w (before normalising,
+        // w = A*v_old; after updating v = w/||w|| we recompute for accuracy).
+        // Recompute A*v with the freshly normalised v.
+        double lambda = 0.0;
+        for (uint32_t i = 0; i < dim; ++i) {
+            double av_i = 0.0;
+            for (uint32_t j = 0; j < dim; ++j) {
+                av_i += A[i * dim + j] * v[j];
+            }
+            lambda += v[i] * av_i;
+        }
+
+        // --- Convergence check ---
+        if (absolute_val(lambda - eigenval_old) < 1e-9) {
+            for (uint32_t j = 0; j < dim; ++j) {
+                out_eigenvec[j] = v[j];
+            }
+            *out_eigenval = lambda;
+            return true;
+        }
+
+        eigenval_old = lambda;
+    }
+
+    // max_iter reached — return best estimate so far.
+    for (uint32_t j = 0; j < dim; ++j) {
+        out_eigenvec[j] = v[j];
+    }
+    *out_eigenval = eigenval_old;
+    return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calc_matrix_eigenvalues_symmetric
+// ─────────────────────────────────────────────────────────────────────────────
+// Computes ALL eigenvalues of a real SYMMETRIC dim×dim matrix via QR iteration
+// with Wilkinson shift.
+//
+// IMPORTANT: Results are only meaningful for symmetric matrices (A == A^T).
+//   For non-symmetric matrices the algorithm may not converge to real eigenvalues.
+//
+// Algorithm (Francis QR iteration with Wilkinson shift):
+//   Initialise Ak = A.
+//   For each outer iteration k:
+//     mu = Ak[dim-1][dim-1]  (Wilkinson shift — last diagonal element)
+//     Shift: Bk = Ak - mu*I
+//     Factorise: Bk = Q * R  (Modified Gram-Schmidt, via calc_matrix_qr)
+//     Restore: Ak+1 = R * Q + mu*I
+//   The diagonal of the converged Ak contains the eigenvalues.
+//
+// Convergence: all |sub-diagonal elements| < 1e-9, or 100 outer iterations.
+//
+// Stack budget: Ak[64] + Q[64] + R[64] = 192 doubles = 1536 bytes — well within
+// the stack limits for an 8-wide matrix.
+bool calc_matrix_eigenvalues_symmetric(const double* A, uint32_t dim, double* eigenvalues) {
+    if (dim > MAX_MATRIX_DIM || dim == 0 || !A || !eigenvalues) {
+        return false;
+    }
+
+    // Working copy of the matrix that we will transform in-place.
+    double Ak[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
+    double Q[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
+    double R[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
+
+    // Initialise Ak = A.
+    for (uint32_t i = 0; i < dim * dim; ++i) {
+        Ak[i] = A[i];
+    }
+
+    // Outer QR iteration loop (at most 100 passes).
+    for (uint32_t outer = 0; outer < 100; ++outer) {
+
+        // --- Wilkinson shift: mu = Ak[dim-1][dim-1] ---
+        double mu = Ak[(dim - 1) * dim + (dim - 1)];
+
+        // --- Bk = Ak - mu*I ---
+        for (uint32_t i = 0; i < dim; ++i) {
+            Ak[i * dim + i] -= mu;
+        }
+
+        // --- QR decomposition: Bk = Q * R ---
+        // calc_matrix_qr expects a rows×cols matrix; Ak is dim×dim here.
+        if (!calc_matrix_qr(Ak, dim, dim, Q, R)) {
+            // Column became linearly dependent — matrix may already be (nearly)
+            // diagonal.  Restore the shift and stop.
+            for (uint32_t i = 0; i < dim; ++i) {
+                Ak[i * dim + i] += mu;
+            }
+            break;
+        }
+
+        // --- Ak+1 = R * Q + mu*I ---
+        // Compute R * Q and store back into Ak.
+        for (uint32_t r = 0; r < dim; ++r) {
+            for (uint32_t c = 0; c < dim; ++c) {
+                double sum = 0.0;
+                for (uint32_t k = 0; k < dim; ++k) {
+                    // R is dim×dim upper-triangular, Q is dim×dim orthogonal.
+                    sum += R[r * dim + k] * Q[k * dim + c];
+                }
+                // Add the shift back on the diagonal to recover Ak+1.
+                Ak[r * dim + c] = sum + ((r == c) ? mu : 0.0);
+            }
+        }
+
+        // --- Convergence check: are all sub-diagonal elements negligible? ---
+        int converged = 1;
+        for (uint32_t i = 0; i < dim - 1; ++i) {
+            // For a symmetric matrix converging to diagonal form the sub-diagonal
+            // elements are the ones directly below the main diagonal.
+            if (absolute_val(Ak[(i + 1) * dim + i]) >= 1e-9) {
+                converged = 0;
+                break;
+            }
+        }
+        if (converged) {
+            break;
+        }
+    }
+
+    // Extract the diagonal of the (approximately) upper-triangular / diagonal Ak.
+    for (uint32_t i = 0; i < dim; ++i) {
+        eigenvalues[i] = Ak[i * dim + i];
+    }
     return true;
 }
