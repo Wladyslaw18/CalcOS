@@ -7,7 +7,7 @@
 
 ---
 
-## 🚨 EMERGENCY DISCLAIMER (READ BEFORE THE LKML FINDS THIS)
+##  DISCLAIMER (READ BEFORE THE LKML FINDS THIS)
 
 **BEFORE ANYONE FROM `lkml.org` SHOWS UP:** this is not an operating system.
 I need that in the H2 header, bolded, italicized, notarized, and possibly
@@ -63,7 +63,7 @@ will to live.
 to anyone's CS degree, or, in retrospect, a good use of a Tuesday night.
 
 Anyway `solve()` still converges to 9 decimal places so we're keeping the
-receipts. We ball. 🏎️💀
+receipts. We ball. 
 
 ---
 
