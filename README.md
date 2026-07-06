@@ -129,3 +129,5 @@ These aren't design patterns. They are hard-won lessons written in triple-fault 
 **Calc OS: Built because adding two numbers should be a matter of physical copper cycles, not operating system overhead.**
 
 *- WladyslawKW, somewhere at 3am, probably*
+
+Signed by Ty Coon, Vice of President (and undisputed President of Vice)
