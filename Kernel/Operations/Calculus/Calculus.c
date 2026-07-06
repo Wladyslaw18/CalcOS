@@ -134,3 +134,86 @@ double bisection(CalculatorState* state, double (*f)(double), double a, double b
     }
     return mid;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * calc_gradient — Numerical gradient of f: Rⁿ → R using central differences.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * out[i] = (f(x + h·eᵢ) - f(x - h·eᵢ)) / (2h)
+ * No heap. Contiguous stack perturbation array capped at 8 dims.
+ * This keeps us in L1 and off the malloc death row.
+ */
+bool calc_gradient(CalculatorState* state, double (*f)(const double*), const double* x, uint32_t n, double h, double* out) {
+    if (!f || !x || !out || n == 0 || n > 8) {
+        if (state) state->flags |= 4; // domain error
+        return false;
+    }
+    if (h == 0.0) {
+        h = 1e-5;
+    }
+
+    double xp[8];
+    for (uint32_t i = 0; i < n; i++) {
+        xp[i] = x[i];
+    }
+
+    for (uint32_t i = 0; i < n; i++) {
+        double orig = x[i];
+
+        xp[i] = orig + h;
+        double fp = f(xp);
+
+        xp[i] = orig - h;
+        double fm = f(xp);
+
+        xp[i] = orig;
+
+        out[i] = (fp - fm) / (2.0 * h);
+    }
+    return true;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * calc_jacobian — Numerical Jacobian of f: Rⁿ → Rᵐ using central differences.
+ * ═══════════════════════════════════════════════════════════════════════════
+ * J[i*n + j] = ∂fᵢ/∂xⱼ  (row-major: m rows × n columns)
+ * Three stack buffers. 192 bytes total to feed the prefetcher's addiction.
+ * out_f is optional — pass NULL and we skip the nominal eval (saves one fn call).
+ */
+bool calc_jacobian(CalculatorState* state, void (*f)(const double*, double*), const double* x, uint32_t n, double* out_f, uint32_t m, double h, double* J) {
+    if (!f || !x || !J || n == 0 || n > 8 || m == 0 || m > 8) {
+        if (state) state->flags |= 4;
+        return false;
+    }
+    if (h == 0.0) {
+        h = 1e-5;
+    }
+
+    double xp[8];
+    double fp[8];
+    double fm[8];
+
+    for (uint32_t i = 0; i < n; i++) {
+        xp[i] = x[i];
+    }
+
+    if (out_f) {
+        f(x, out_f);
+    }
+
+    for (uint32_t j = 0; j < n; j++) {
+        double orig = x[j];
+
+        xp[j] = orig + h;
+        f(xp, fp);
+
+        xp[j] = orig - h;
+        f(xp, fm);
+
+        xp[j] = orig;
+
+        for (uint32_t i = 0; i < m; i++) {
+            J[i * n + j] = (fp[i] - fm[i]) / (2.0 * h);
+        }
+    }
+    return true;
+}
