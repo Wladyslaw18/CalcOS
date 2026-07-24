@@ -3,8 +3,8 @@
  * implementation to the Kernel FormatterAPI stable interface.
  */
 
-#include "../../Kernel/API/FormatterAPI.h"
-#include "../../Application/Output/Formatter.h"
+#include "Kernel/API/FormatterAPI.h"
+#include "Application/Output/Formatter.h"
 #include <stdarg.h>
 
 /* ─── Format wrapper ─── */
