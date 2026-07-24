@@ -1,6 +1,8 @@
 #ifndef CALCULUS_H
 #define CALCULUS_H
 
+#include <stdbool.h>
+#include <stdint.h>
 #include "../../State/CalculatorState.h"
 
 // Numerical derivative using central difference method
