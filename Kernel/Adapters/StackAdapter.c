@@ -3,8 +3,8 @@
  * implementation to the Kernel StackAPI stable interface.
  */
 
-#include "../../Kernel/API/StackAPI.h"
-#include "../../Kernel/State/OperandStack.h"
+#include "Kernel/API/StackAPI.h"
+#include "Kernel/State/OperandStack.h"
 
 /* ─── Push wrapper ─── */
 static int adapter_push(CalculatorState* state, double val) {
