@@ -11,8 +11,8 @@
  *     kernel_register(kernel, KRN_DISPLAY, "display", &api);
  */
 
-#include "../../Kernel/API/DisplayAPI.h"
-#include "../../include/calc/display.h"
+#include "Kernel/API/DisplayAPI.h"
+#include "include/calc/display.h"
 
 /* ================================================================= */
 /*  Trampoline callbacks                                              */
