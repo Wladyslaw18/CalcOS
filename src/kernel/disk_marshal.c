@@ -59,6 +59,7 @@ bool ndb_marshal_to_disk(const NanoDatabase* db, uint32_t start_lba) {
             outw(IDE_DATA_PORT, word_to_write);
 #else
             (void)word_to_write;
+            (void)start_lba;
 #endif
         }
     }

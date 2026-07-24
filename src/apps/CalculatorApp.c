@@ -33,6 +33,7 @@ static void calc_app_init(void* ctx) {
         // Replay the log through the parser to rebuild the stack
         bool success;
         parse_expression(s_wal->history_log, &app->state, &success);
+        (void)success;
     }
 }
 

@@ -77,6 +77,7 @@ static inline int local_isinf(double x) {
 }
 
 // Local snprintf using project's format_string
+FORMAT_PRINTF(3, 4)
 static int local_snprintf(char* buf, size_t size, const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);

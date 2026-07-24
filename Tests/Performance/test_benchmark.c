@@ -122,6 +122,7 @@ int main(void) {
     }
 
     (void)sink; // prevent dead-code elim
+    (void)ok;
     printf("\n==============================================\n");
     printf("  DONE\n");
     printf("==============================================\n\n");

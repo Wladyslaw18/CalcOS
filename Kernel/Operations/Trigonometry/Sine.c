@@ -13,6 +13,14 @@
 #define PI 3.14159265358979323846
 #define INV_PI 0.31830988618379067154
 
+#if defined(__GNUC__) || defined(__clang__)
+#define TARGET_AVX2 __attribute__((target("avx2")))
+#define TARGET_SSE2 __attribute__((target("sse2")))
+#else
+#define TARGET_AVX2
+#define TARGET_SSE2
+#endif
+
 static inline double approx_sin_scalar(double x) {
     double k_d = (double)((int64_t)(x * INV_PI + (x >= 0.0 ? 0.5 : -0.5)));
     double xr = x - k_d * PI;
@@ -32,7 +40,7 @@ void sin_scalar(CalculatorState* state, const double* a, double* result, uint32_
     }
 }
 
-void sin_sse(CalculatorState* state, const double* a, double* result, uint32_t count) {
+TARGET_SSE2 void sin_sse(CalculatorState* state, const double* a, double* result, uint32_t count) {
     (void)state;
 #ifdef COMPILER_X86
     uint32_t i = 0;
@@ -83,7 +91,7 @@ void sin_sse(CalculatorState* state, const double* a, double* result, uint32_t c
 #endif
 }
 
-void sin_avx2(CalculatorState* state, const double* a, double* result, uint32_t count) {
+TARGET_AVX2 void sin_avx2(CalculatorState* state, const double* a, double* result, uint32_t count) {
     (void)state;
 #ifdef COMPILER_X86
     uint32_t i = 0;
@@ -141,6 +149,7 @@ void sin_avx2(CalculatorState* state, const double* a, double* result, uint32_t 
 
 void sin_neon(CalculatorState* state, const double* a, double* result, uint32_t count) {
 #if defined(COMPILER_ARM) && (defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON))
+    (void)state;
     uint32_t i = 0;
     for (; i + 1 < count; i += 2) {
         float64x2_t vx = vld1q_f64(&a[i]);

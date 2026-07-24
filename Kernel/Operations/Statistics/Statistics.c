@@ -14,6 +14,14 @@
 #define COMPILER_X86
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#define TARGET_AVX2 __attribute__((target("avx2")))
+#define TARGET_SSE2 __attribute__((target("sse2")))
+#else
+#define TARGET_AVX2
+#define TARGET_SSE2
+#endif
+
 static inline const CPUFeatures* get_cpu_features(void) {
     static CPUFeatures features;
     static bool detected = false;
@@ -32,7 +40,7 @@ double calc_mean_scalar(const double* arr, uint32_t len) {
     return sum / len;
 }
 
-double calc_mean_sse2(const double* arr, uint32_t len) {
+TARGET_SSE2 double calc_mean_sse2(const double* arr, uint32_t len) {
     double sum = 0.0;
     uint32_t i = 0;
 #ifdef COMPILER_X86
@@ -51,7 +59,7 @@ double calc_mean_sse2(const double* arr, uint32_t len) {
     return sum / len;
 }
 
-double calc_mean_avx2(const double* arr, uint32_t len) {
+TARGET_AVX2 double calc_mean_avx2(const double* arr, uint32_t len) {
     double sum = 0.0;
     uint32_t i = 0;
 #ifdef COMPILER_X86
@@ -159,12 +167,13 @@ double calc_median(double* arr, uint32_t len) {
     }
 }
 
-double calc_variance_with_mean(const double* arr, uint32_t len, double mean) {
+TARGET_AVX2 double calc_variance_with_mean(const double* arr, uint32_t len, double mean) {
     double sum_sq_diff = 0.0;
     uint32_t i = 0;
     const CPUFeatures* features = get_cpu_features();
 
 #ifdef COMPILER_X86
+    (void)features;
     if (features->has_avx2) {
         __m256d vmean = _mm256_set1_pd(mean);
         __m256d vsum_sq = _mm256_setzero_pd();
@@ -194,7 +203,7 @@ double calc_variance_with_mean(const double* arr, uint32_t len, double mean) {
         double diff = arr[i] - mean;
         sum_sq_diff += diff * diff;
     }
-    return sum_sq_diff / (len - 1);
+    return sum_sq_diff / (double)(len - 1);
 }
 
 double calc_variance(const double* arr, uint32_t len) {
@@ -203,12 +212,13 @@ double calc_variance(const double* arr, uint32_t len) {
     return calc_variance_with_mean(arr, len, mean);
 }
 
-double calc_covariance_with_means(const double* x_arr, const double* y_arr, uint32_t len, double mean_x, double mean_y) {
+TARGET_AVX2 double calc_covariance_with_means(const double* x_arr, const double* y_arr, uint32_t len, double mean_x, double mean_y) {
     double sum_coproduct = 0.0;
     uint32_t i = 0;
     const CPUFeatures* features = get_cpu_features();
 
 #ifdef COMPILER_X86
+    (void)features;
     if (features->has_avx2) {
         __m256d vmean_x = _mm256_set1_pd(mean_x);
         __m256d vmean_y = _mm256_set1_pd(mean_y);
@@ -243,7 +253,7 @@ double calc_covariance_with_means(const double* x_arr, const double* y_arr, uint
     for (; i < len; ++i) {
         sum_coproduct += (x_arr[i] - mean_x) * (y_arr[i] - mean_y);
     }
-    return sum_coproduct / (len - 1);
+    return sum_coproduct / (double)(len - 1);
 }
 
 double calc_covariance(const double* x_arr, const double* y_arr, uint32_t len) {
@@ -253,7 +263,7 @@ double calc_covariance(const double* x_arr, const double* y_arr, uint32_t len) {
     return calc_covariance_with_means(x_arr, y_arr, len, mean_x, mean_y);
 }
 
-void calc_var_covar_combined(const double* x_arr, const double* y_arr, uint32_t len,
+TARGET_AVX2 void calc_var_covar_combined(const double* x_arr, const double* y_arr, uint32_t len,
                              double mean_x, double mean_y,
                              double* out_var_x, double* out_var_y, double* out_cov) {
     double sum_sq_x = 0.0;
@@ -263,6 +273,7 @@ void calc_var_covar_combined(const double* x_arr, const double* y_arr, uint32_t 
     const CPUFeatures* features = get_cpu_features();
 
 #ifdef COMPILER_X86
+    (void)features;
     if (features->has_avx2) {
         __m256d vmean_x = _mm256_set1_pd(mean_x);
         __m256d vmean_y = _mm256_set1_pd(mean_y);
@@ -318,9 +329,9 @@ void calc_var_covar_combined(const double* x_arr, const double* y_arr, uint32_t 
         sum_coprod += dx * dy;
     }
 
-    *out_var_x = sum_sq_x / (len - 1);
-    *out_var_y = sum_sq_y / (len - 1);
-    *out_cov   = sum_coprod / (len - 1);
+    *out_var_x = sum_sq_x / (double)(len - 1);
+    *out_var_y = sum_sq_y / (double)(len - 1);
+    *out_cov   = sum_coprod / (double)(len - 1);
 }
 
 double calc_correlation(const double* x_arr, const double* y_arr, uint32_t len) {
@@ -364,7 +375,7 @@ double calc_percentile(double* arr, uint32_t len, double p) {
     return target[lo] + frac * (target[hi] - target[lo]);
 }
 
-double calc_skewness(const double* arr, uint32_t len) {
+TARGET_AVX2 double calc_skewness(const double* arr, uint32_t len) {
     if (!arr || len < 3) return math_nan();
 
     double mean = calc_mean(arr, len);
@@ -378,6 +389,7 @@ double calc_skewness(const double* arr, uint32_t len) {
     const CPUFeatures* features = get_cpu_features();
 
 #ifdef COMPILER_X86
+    (void)features;
     if (features->has_avx2) {
         __m256d vmean      = _mm256_set1_pd(mean);
         __m256d vsum_cube  = _mm256_setzero_pd();
@@ -416,7 +428,7 @@ double calc_skewness(const double* arr, uint32_t len) {
     return moment3 / stddev3;
 }
 
-double calc_kurtosis(const double* arr, uint32_t len) {
+TARGET_AVX2 double calc_kurtosis(const double* arr, uint32_t len) {
     if (!arr || len < 4) return math_nan();
 
     double mean = calc_mean(arr, len);
@@ -429,6 +441,7 @@ double calc_kurtosis(const double* arr, uint32_t len) {
     const CPUFeatures* features = get_cpu_features();
 
 #ifdef COMPILER_X86
+    (void)features;
     if (features->has_avx2) {
         __m256d vmean       = _mm256_set1_pd(mean);
         __m256d vsum_quart  = _mm256_setzero_pd();

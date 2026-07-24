@@ -113,6 +113,7 @@ void and_avx2(CalculatorState* state, const double* a, const double* b, double* 
  * register-format agnostic. No lane insertions, no roundtrips.
  */
 void and_neon(CalculatorState* state, const double* a, const double* b, double* result, uint32_t count) {
+    (void)state;
 #if defined(COMPILER_ARM) && (defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON))
     uint32_t i = 0;
 

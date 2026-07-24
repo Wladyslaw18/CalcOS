@@ -56,7 +56,7 @@ void logger_write_dec(long long val) {
     unsigned long long uval;
     if (val < 0) {
         negative = 1;
-        uval = -(unsigned long long)val;
+        uval = ~(unsigned long long)val + 1;
     } else {
         uval = (unsigned long long)val;
     }

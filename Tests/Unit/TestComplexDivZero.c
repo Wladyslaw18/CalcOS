@@ -13,7 +13,6 @@ int main(void) {
     /* (1+0i) / (0+0i) must set DivZero flag */
     {
         CalculatorState state = {0};
-        int success = 0;
         /* Direct complex div through ShuntingYard evaluator */
         double result = 0.0;
         (void)result;

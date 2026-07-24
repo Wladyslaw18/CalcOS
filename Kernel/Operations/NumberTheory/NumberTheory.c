@@ -143,7 +143,7 @@ bool is_prime(uint64_t n) {
     uint64_t s = ctzll(d);
     d >>= s;
 
-    for (uint32_t i = 0; i < sizeof(bases)/sizeof(bases[0]); i++) {
+    for (size_t i = 0; i < sizeof(bases)/sizeof(bases[0]); i++) {
         uint64_t a = bases[i];
         if (n <= a) break; // base >= n is invalid for Miller-Rabin
         if (miller_rabin_witness(a, d, s, n)) return false;

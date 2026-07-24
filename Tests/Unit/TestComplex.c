@@ -46,6 +46,7 @@
 #include "../Kernel/Core/CPU/CPUID.h"
 #include "../Infrastructure/Utils/MemoryUtils.h"
 #include "../Application/Input/Parser.h"
+#include "../Kernel/State/History.h"
 
 // ============================================================
 // ASSERTION ENGINE
@@ -204,7 +205,7 @@ static void test_bigint_div(void) {
     bigint_to_string(&q, buf, sizeof(buf));
     CHECK(strcmp(buf, "4294967296") == 0, "2^64 / 2^32 = 2^32");
 
-    printf("  BigInt Div: %d assertions\n", ...);
+    printf("  BigInt Div: %d assertions\n", g_total - (g_total - g_passed - g_failed));
 }
 
 // ============================================================
@@ -390,6 +391,7 @@ static void test_nan_safety(void) {
     // Actually div_scalar takes pointers and count... 
     // The function already handles this in the test:
     // tested division by zero in the parser test above
+    (void)div_res;
     
     printf("  NaN Safety: all passed\n");
 }
@@ -492,6 +494,7 @@ static void test_edge_cases(void) {
     double r, theta;
     complex_polar(cc, &r, &theta);
     CHECK_DOUBLE(r, 5.0, 1e-10);
+    (void)theta;
 
     // Rational operations
     RationalValue ra = {1, 2};

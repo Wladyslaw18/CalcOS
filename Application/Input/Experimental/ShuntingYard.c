@@ -11,37 +11,13 @@
 
 #include "ShuntingYard.h"
 #include "../../../Infrastructure/Utils/MemoryUtils.h"
-#include "Kernel/Operations/Complex/ComplexOps.h"
-#include "Kernel/Operations/Complex/ComplexTrig.h"
+#include "../../../Kernel/Operations/Complex/ComplexOps.h"
+#include "../../../Kernel/Operations/Complex/ComplexTrig.h"
 #include <stddef.h>
 
 #define PI 3.14159265358979323846
 #define INV_PI 0.31830988618379067154
 
-// Freestanding local mathematical functions to avoid any external runtime dependency
-static inline double local_sin(double x) {
-    double k_d = (double)((int64_t)(x * INV_PI + (x >= 0.0 ? 0.5 : -0.5)));
-    double xr = x - k_d * PI;
-    double z2 = xr * xr;
-    double val = xr * (1.0 + z2 * (-0.16666666666666666 + z2 * (0.008333333333333333 + z2 * (-0.0001984126984126984 + z2 * (0.00000275573192239859 + z2 * (-2.50521083854417e-8))))));
-    int64_t k_i = (int64_t)k_d;
-    if (k_i & 1) {
-        val = -val;
-    }
-    return val;
-}
-
-static inline double local_cos(double x) {
-    double k_d = (double)((int64_t)(x * INV_PI + (x >= 0.0 ? 0.5 : -0.5)));
-    double xr = x - k_d * PI;
-    double z2 = xr * xr;
-    double val = 1.0 + z2 * (-0.5 + z2 * (0.041666666666666664 + z2 * (-0.0013888888888888889 + z2 * (0.0000248015873015873 + z2 * (-2.75573192239859e-7)))));
-    int64_t k_i = (int64_t)k_d;
-    if (k_i & 1) {
-        val = -val;
-    }
-    return val;
-}
 
 static inline double simple_ln(double x) {
     if (x <= 0.0) return 0.0;

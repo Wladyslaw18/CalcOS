@@ -73,6 +73,7 @@ void or_avx2(CalculatorState* state, const double* a, const double* b, double* r
 
 /* ARM NEON: vandq_u64 / vorrq_u64 operate on raw 64-bit lanes - no FP register crossings */
 void or_neon(CalculatorState* state, const double* a, const double* b, double* result, uint32_t count) {
+    (void)state;
 #if defined(COMPILER_ARM) && (defined(__aarch64__) || defined(_M_ARM64) || defined(__ARM_NEON))
     uint32_t i = 0;
     for (; i + 1 < count; i += 2) {

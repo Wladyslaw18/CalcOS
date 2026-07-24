@@ -42,12 +42,7 @@ void bigint_normalize(BigInt* a) {
     }
 }
 
-// Clear entire limb array (fast_memset, zero-cost on hot cache)
-static void bigint_clear(BigInt* a) {
-    fast_memset(a->limbs, 0, sizeof(bigint_limb_t) * BIGINT_MAX_LIMBS);
-    a->len = 1;
-    a->negative = false;
-}
+
 
 // ============================================================
 // INITIALIZATION
@@ -237,7 +232,6 @@ void bigint_add(const BigInt* a, const BigInt* b, BigInt* result) {
     }
 
     // Signs differ: subtract smaller magnitude from larger, result sign = larger's sign
-    int cmp = bigint_compare(a, b);
     // Need to compare by magnitude only but compare already handles sign-adjusted
     // For sign-differing case, must compare absolute values
     // Quick hack: just compare abs by swapping signs temporarily (safe on const?)
@@ -283,6 +277,7 @@ void bigint_sub(const BigInt* a, const BigInt* b, BigInt* result) {
 // Splits each operand into 32-bit halves and does 4 partial products
 // like grade-school multiplication, but with carry tracking.
 // Proved correct for all uint64_t inputs.
+#if !HAVE_UINT128
 static void mul64x64_portable(uint64_t a, uint64_t b, uint64_t* hi, uint64_t* lo) {
     uint64_t a_lo = a & 0xFFFFFFFFULL;
     uint64_t a_hi = a >> 32;
@@ -337,6 +332,7 @@ static inline uint64_t div128_by_64(uint64_t u1, uint64_t u0, uint64_t v, uint64
     return (q1 << 32) | q0;
 #endif
 }
+#endif
 
 // ============================================================
 // MULTIPLICATION

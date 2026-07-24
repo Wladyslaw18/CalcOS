@@ -5,6 +5,14 @@
 
 #define CHUNK_SIZE 64
 
+#if defined(__GNUC__) || defined(__clang__)
+#define TARGET_AVX2 __attribute__((target("avx2")))
+#define TARGET_SSE2 __attribute__((target("sse2")))
+#else
+#define TARGET_AVX2
+#define TARGET_SSE2
+#endif
+
 void tan_scalar(CalculatorState* state, const double* a, double* result, uint32_t count) {
     double sin_buf[CHUNK_SIZE];
     double cos_buf[CHUNK_SIZE];
@@ -17,7 +25,7 @@ void tan_scalar(CalculatorState* state, const double* a, double* result, uint32_
     }
 }
 
-void tan_sse(CalculatorState* state, const double* a, double* result, uint32_t count) {
+TARGET_SSE2 void tan_sse(CalculatorState* state, const double* a, double* result, uint32_t count) {
     double sin_buf[CHUNK_SIZE];
     double cos_buf[CHUNK_SIZE];
     
@@ -29,7 +37,7 @@ void tan_sse(CalculatorState* state, const double* a, double* result, uint32_t c
     }
 }
 
-void tan_avx2(CalculatorState* state, const double* a, double* result, uint32_t count) {
+TARGET_AVX2 void tan_avx2(CalculatorState* state, const double* a, double* result, uint32_t count) {
     double sin_buf[CHUNK_SIZE];
     double cos_buf[CHUNK_SIZE];
     

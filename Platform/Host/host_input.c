@@ -34,6 +34,10 @@
 #include <SDL2/SDL.h>
 #endif
 
+int host_input_create_sdl(InputDriver* driver);
+int host_input_create_terminal(InputDriver* driver);
+void host_input_destroy(InputDriver* driver);
+
 // Input context
 typedef struct {
     int use_sdl;           // Non-zero if using SDL input

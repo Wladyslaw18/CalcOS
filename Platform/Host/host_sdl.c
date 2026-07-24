@@ -21,6 +21,10 @@
 #ifdef COMPILE_SDL
 #include <SDL2/SDL.h>
 
+int host_sdl_create(DisplayDriver* driver, uint32_t width, uint32_t height, const char* title);
+void host_sdl_destroy(DisplayDriver* driver);
+void* host_sdl_get_window(const DisplayDriver* driver);
+
 // Driver context
 typedef struct {
     SDL_Window*   window;
@@ -202,9 +206,9 @@ void host_sdl_destroy(DisplayDriver* driver) {
 }
 
 // Get SDL window for event handling (host_input.c needs this)
-SDL_Window* host_sdl_get_window(const DisplayDriver* driver) {
+void* host_sdl_get_window(const DisplayDriver* driver) {
     if (!driver || !driver->context) return NULL;
-    return ((SDLContext*)driver->context)->window;
+    return (void*)((SDLContext*)driver->context)->window;
 }
 
 #else // COMPILE_SDL not defined stub

@@ -23,6 +23,9 @@
 #include <string.h>
 #include <stdarg.h>
 
+int host_term_create(DisplayDriver* driver, uint32_t cols, uint32_t rows);
+void host_term_destroy(DisplayDriver* driver);
+
 // Terminal display context
 typedef struct {
     uint32_t  width;          // Terminal cell columns
