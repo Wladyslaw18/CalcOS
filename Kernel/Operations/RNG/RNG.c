@@ -39,6 +39,16 @@
 
 #include "RNG.h"
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#include <immintrin.h>
+#define COMPILER_X86
+#endif
+
+#if defined(__ARM_NEON) || defined(__aarch64__) || defined(_M_ARM) || defined(_M_ARM64)
+#include <arm_neon.h>
+#define COMPILER_ARM
+#endif
+
 #define PI 3.14159265358979323846
 
 /* ============================================================
@@ -187,11 +197,28 @@ static inline double custom_log(double x) {
 
 static inline double custom_sqrt(double x) {
     if (x <= 0.0) return 0.0;
-    double val = x;
-    for (int i = 0; i < 8; ++i) {
-        val = 0.5 * (val + x / val);
-    }
-    return val;
+#if defined(COMPILER_X86)
+    return _mm_cvtsd_f64(_mm_sqrt_sd(_mm_setzero_pd(), _mm_set_sd(x)));
+#elif defined(COMPILER_ARM) && (defined(__aarch64__) || defined(_M_ARM64))
+    // Use AArch64 hardware vector/scalar square root
+    float64x2_t v_x = vdupq_n_f64(x);
+    return vgetq_lane_f64(vsqrtq_f64(v_x), 0);
+#else
+    // Fallback: fast inverse square root with magic constant 0x5fe6eb50c7b537a9
+    double xhalf = 0.5 * x;
+    union {
+        double d;
+        uint64_t i;
+    } u;
+    u.d = x;
+    u.i = 0x5fe6eb50c7b537a9ULL - (u.i >> 1);
+    double y = u.d;
+    y = y * (1.5 - xhalf * y * y);
+    y = y * (1.5 - xhalf * y * y);
+    y = y * (1.5 - xhalf * y * y);
+    y = y * (1.5 - xhalf * y * y); // 4 iterations of Newton-Raphson for double-precision accuracy
+    return y * x;
+#endif
 }
 
 static inline double approx_sin(double x) {
