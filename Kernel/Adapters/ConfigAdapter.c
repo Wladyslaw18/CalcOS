@@ -7,9 +7,9 @@
  * ZERO HEAP ALLOCATIONS. Everything is stack/static based.
  */
 
-#include "../../Kernel/API/ConfigAPI.h"
-#include "../../Infrastructure/Config/ConfigParser.h"
-#include "../../Infrastructure/Config/ConfigDefaults.h"
+#include "Kernel/API/ConfigAPI.h"
+#include "Infrastructure/Config/ConfigParser.h"
+#include "Infrastructure/Config/ConfigDefaults.h"
 
 // Static config instance -- no heap allocation
 static CpuConfig g_config;
