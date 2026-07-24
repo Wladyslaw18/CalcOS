@@ -7,8 +7,8 @@
  * ParserAPI struct — no consumer code changes needed.
  */
 
-#include "../../Kernel/API/ParserAPI.h"
-#include "../../Application/Input/Parser.h"
+#include "Kernel/API/ParserAPI.h"
+#include "Application/Input/Parser.h"
 
 /* ─── Parse wrapper ─── */
 static double adapter_parse(const char* source, CalculatorState* state, bool* success) {
