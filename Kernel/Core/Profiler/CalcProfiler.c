@@ -80,6 +80,7 @@ ProfileResult profile_expression(double (*func)(void*), void* arg) {
 
     // Set up error recovery boundary
     CalcError saved_error = g_last_error;
+    (void)saved_error;
 
     // Read TSC before evaluation
     ProfileTimestamp t0 = profile_read_tsc();
