@@ -11,8 +11,8 @@
  *     kernel_register(kernel, KRN_INPUT, "input", &api);
  */
 
-#include "../../Kernel/API/InputAPI.h"
-#include "../../include/calc/input.h"
+#include "Kernel/API/InputAPI.h"
+#include "include/calc/input.h"
 
 /* ================================================================= */
 /*  Trampoline callbacks                                              */
