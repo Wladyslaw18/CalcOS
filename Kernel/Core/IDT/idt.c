@@ -86,6 +86,24 @@ static void vga_puts(const char* str, int x, int y, uint8_t color) {
     }
 }
 
+// Port I/O for serial
+static inline void outb(uint16_t port, uint8_t val) {
+#if defined(__i386__) || defined(__x86_64__)
+    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
+#else
+    (void)port; (void)val;
+#endif
+}
+static inline uint8_t inb(uint16_t port) {
+#if defined(__i386__) || defined(__x86_64__)
+    uint8_t ret;
+    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
+#else
+    (void)port; return 0;
+#endif
+}
+
 // Serial COM1 helpers
 #define COM1_PORT 0x3F8
 static void serial_out(char c) {
@@ -300,14 +318,6 @@ void idt_init(void) {
     vga[5] = (uint16_t)'K' | (0x02 << 8);
 }
 
-// Port I/O for serial (inlined here so no dependency on x86_64/PortIO.h)
-static inline void outb(uint16_t port, uint8_t val) {
-    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-static inline uint8_t inb(uint16_t port) {
-    uint8_t ret;
-    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
-    return ret;
 }
 #else
 void idt_init(void) {
