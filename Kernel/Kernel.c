@@ -246,17 +246,20 @@ static void kernel_log(const Kernel* krn, const char* msg) {
      * Wait for Transmitter Holding Register Empty (bit 5 of LSR = port 0x3FD),
      * then write one byte at a time to the data register (port 0x3F8). */
     for (const char* p = msg; *p; ++p) {
-        /* Busy-wait on LSR bit 5 */
         uint8_t lsr;
         do {
-            __asm__ volatile ("inb $0x3FD, %0" : "=a"(lsr));
+            __asm__ volatile ("inb %1, %0" : "=a"(lsr) : "Nd"((uint16_t)0x3FD));
         } while (!(lsr & 0x20));
-        __asm__ volatile ("outb %0, $0x3F8" :: "a"(*p));
+        uint8_t ch = (uint8_t)*p;
+        __asm__ volatile ("outb %0, %1" : : "a"(ch), "Nd"((uint16_t)0x3F8));
     }
     /* Newline */
     uint8_t lsr;
-    do { __asm__ volatile ("inb $0x3FD, %0" : "=a"(lsr)); } while (!(lsr & 0x20));
-    __asm__ volatile ("outb %0, $0x3F8" :: "a"('\n'));
+    do {
+        __asm__ volatile ("inb %1, %0" : "=a"(lsr) : "Nd"((uint16_t)0x3FD));
+    } while (!(lsr & 0x20));
+    uint8_t nl = (uint8_t)'\n';
+    __asm__ volatile ("outb %0, %1" : : "a"(nl), "Nd"((uint16_t)0x3F8));
 #endif
     /* PLATFORM_HOST: silent — host logger registered immediately after init */
 }
