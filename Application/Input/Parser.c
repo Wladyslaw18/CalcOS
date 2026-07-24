@@ -50,7 +50,7 @@ static THREAD_LOCAL int symbol_count = 0;
 // Parse depth counter: reset to 0 at parse_expression entry, incremented per recursive call. (#29)
 // Single-core safe: each parse_expression call resets it.
 // Not thread-safe, but this is a single-core bare-metal kernel.
-static int g_parse_depth = 0;
+static THREAD_LOCAL int g_parse_depth = 0;
 
 // xoshiro256++ state for expression-level rand()/randn()
 // 256-bit state = 2^256 period, passes TestU01 BigCrush
