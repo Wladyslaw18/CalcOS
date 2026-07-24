@@ -317,8 +317,6 @@ void idt_init(void) {
     vga[4] = (uint16_t)'O' | (0x02 << 8);
     vga[5] = (uint16_t)'K' | (0x02 << 8);
 }
-
-}
 #else
 void idt_init(void) {
     // No-op under host simulation
