@@ -2,42 +2,14 @@
  * File: LinearAlgebra.c
  * Author: W. Kowal
  * Description: Basic and advanced linear algebra routines implementation.
+ * 
+ * Refactored to eliminate duplicate math helpers. Now strictly routes
+ * through the unified /Infrastructure/Utils/MathUtils.h primitives.
  */
 
 #include "LinearAlgebra.h"
-#include "../../Infrastructure/Utils/MathUtils.h"
-
-// Abs helper since cannot use math.h
-static inline double absolute_val(double v) {
-    union {
-        double d;
-        uint64_t i;
-    } u;
-    u.d = v;
-    u.i &= 0x7FFFFFFFFFFFFFFFULL;
-    return u.d;
-}
-
-// Sqrt helper using Newton's method
-static inline double calc_sqrt(double val) {
-    if (val <= 0.0) {
-        return 0.0;
-    }
-    union {
-        double d;
-        uint64_t i;
-    } u;
-    u.d = val;
-    u.i = 0x1FE6EC85E7DE30DALL + (u.i >> 1);
-    double x = u.d;
-    // 5 Newton-Raphson iterations for double-precision accuracy
-    x = 0.5 * (x + val / x);
-    x = 0.5 * (x + val / x);
-    x = 0.5 * (x + val / x);
-    x = 0.5 * (x + val / x);
-    x = 0.5 * (x + val / x);
-    return x;
-}
+#include "Infrastructure/Utils/MemoryUtils.h"
+#include "Infrastructure/Utils/MathUtils.h"
 
 bool matrix_add(CalculatorState* state,
                 const double* A, uint32_t a_rows, uint32_t a_cols,
@@ -74,11 +46,21 @@ bool matrix_mul(CalculatorState* state,
         return false;
     }
 
+    // Transpose B to improve cache locality (sequential read-friendly)
+    double B_T[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
+    for (uint32_t r = 0; r < b_rows; ++r) {
+        for (uint32_t c = 0; c < b_cols; ++c) {
+            B_T[c * b_rows + r] = B[r * b_cols + c];
+        }
+    }
+
     for (uint32_t r = 0; r < a_rows; ++r) {
         for (uint32_t c = 0; c < b_cols; ++c) {
             double sum = 0.0;
+            uint32_t a_offset = r * a_cols;
+            uint32_t b_offset = c * b_rows; // since b_rows == a_cols
             for (uint32_t k = 0; k < a_cols; ++k) {
-                sum += A[r * a_cols + k] * B[k * b_cols + c];
+                sum += A[a_offset + k] * B_T[b_offset + k];
             }
             C[r * b_cols + c] = sum;
         }
@@ -112,17 +94,15 @@ bool matrix_determinant(CalculatorState* state,
     }
 
     double mat[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
-    for (uint32_t i = 0; i < dim * dim; ++i) {
-        mat[i] = A[i];
-    }
+    fast_memcpy(mat, A, sizeof(double) * dim * dim);
 
     double det = 1.0;
     for (uint32_t i = 0; i < dim; ++i) {
         // Find pivot
         uint32_t pivot = i;
-        double max_val = absolute_val(mat[i * dim + i]);
+        double max_val = math_abs(mat[i * dim + i]);
         for (uint32_t r = i + 1; r < dim; ++r) {
-            double val = absolute_val(mat[r * dim + i]);
+            double val = math_abs(mat[r * dim + i]);
             if (val > max_val) {
                 max_val = val;
                 pivot = r;
@@ -181,9 +161,9 @@ bool matrix_inverse(CalculatorState* state,
     for (uint32_t i = 0; i < dim; ++i) {
         // Find pivot
         uint32_t pivot = i;
-        double max_val = absolute_val(aug[i * aug_cols + i]);
+        double max_val = math_abs(aug[i * aug_cols + i]);
         for (uint32_t r = i + 1; r < dim; ++r) {
-            double val = absolute_val(aug[r * aug_cols + i]);
+            double val = math_abs(aug[r * aug_cols + i]);
             if (val > max_val) {
                 max_val = val;
                 pivot = r;
@@ -240,9 +220,7 @@ bool matrix_rref(CalculatorState* state,
     }
 
     // Copy A to C
-    for (uint32_t i = 0; i < rows * cols; ++i) {
-        C[i] = A[i];
-    }
+    fast_memcpy(C, A, sizeof(double) * rows * cols);
 
     uint32_t lead = 0;
     for (uint32_t r = 0; r < rows; ++r) {
@@ -250,7 +228,7 @@ bool matrix_rref(CalculatorState* state,
             break;
         }
         uint32_t i = r;
-        while (absolute_val(C[i * cols + lead]) < 1e-12) {
+        while (math_abs(C[i * cols + lead]) < 1e-12) {
             i++;
             if (i == rows) {
                 i = r;
@@ -272,7 +250,7 @@ bool matrix_rref(CalculatorState* state,
 
         // Divide row r by C[r, lead]
         double val = C[r * cols + lead];
-        if (absolute_val(val) > 1e-12) {
+        if (math_abs(val) > 1e-12) {
             for (uint32_t c = 0; c < cols; ++c) {
                 C[r * cols + c] /= val;
             }
@@ -308,9 +286,9 @@ bool calc_matrix_lu(const double* A, uint32_t dim, double* L, double* U, uint32_
 
     for (uint32_t i = 0; i < dim; ++i) {
         uint32_t pivot = i;
-        double max_val = absolute_val(U[i * dim + i]);
+        double max_val = math_abs(U[i * dim + i]);
         for (uint32_t r = i + 1; r < dim; ++r) {
-            double val = absolute_val(U[r * dim + i]);
+            double val = math_abs(U[r * dim + i]);
             if (val > max_val) {
                 max_val = val;
                 pivot = r;
@@ -360,9 +338,7 @@ bool calc_matrix_qr(const double* A, uint32_t rows, uint32_t cols, double* Q, do
             Q[r * cols + c] = A[r * cols + c];
         }
     }
-    for (uint32_t i = 0; i < cols * cols; ++i) {
-        R[i] = 0.0;
-    }
+    fast_memset(R, 0, sizeof(double) * cols * cols);
 
     for (uint32_t i = 0; i < cols; ++i) {
         double sum_sq = 0.0;
@@ -370,7 +346,7 @@ bool calc_matrix_qr(const double* A, uint32_t rows, uint32_t cols, double* Q, do
             double val = Q[r * cols + i];
             sum_sq += val * val;
         }
-        double norm = calc_sqrt(sum_sq);
+        double norm = math_sqrt(sum_sq);
 
         if (norm < 1e-12) {
             return false;
@@ -429,7 +405,7 @@ bool calc_solve_linear(const double* A, const double* b, uint32_t dim, double* x
         for (uint32_t j = (uint32_t)i + 1; j < dim; ++j) {
             sum += U[i * dim + j] * x[j];
         }
-        if (absolute_val(U[i * dim + i]) < 1e-12) {
+        if (math_abs(U[i * dim + i]) < 1e-12) {
             return false;
         }
         x[i] = (y[i] - sum) / U[i * dim + i];
@@ -464,7 +440,7 @@ bool calc_least_squares(const double* A, const double* b, uint32_t rows, uint32_
         for (uint32_t j = (uint32_t)i + 1; j < cols; ++j) {
             sum += R[i * cols + j] * x[j];
         }
-        if (absolute_val(R[i * cols + i]) < 1e-12) {
+        if (math_abs(R[i * cols + i]) < 1e-12) {
             return false;
         }
         x[i] = (d[i] - sum) / R[i * cols + i];
@@ -473,12 +449,6 @@ bool calc_least_squares(const double* A, const double* b, uint32_t rows, uint32_
     return true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// calc_matrix_trace
-// ─────────────────────────────────────────────────────────────────────────────
-// Returns the sum of the main-diagonal elements of a square dim×dim matrix A.
-// This equals the sum of all eigenvalues and is used to sanity-check eigenvalue
-// decompositions (trace(A) == sum of eigenvalues for any diagonalisable matrix).
 bool calc_matrix_trace(const double* A, uint32_t dim, double* result) {
     if (dim > MAX_MATRIX_DIM || dim == 0 || !A || !result) {
         return false;
@@ -492,22 +462,6 @@ bool calc_matrix_trace(const double* A, uint32_t dim, double* result) {
     return true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// calc_matrix_power_iteration
-// ─────────────────────────────────────────────────────────────────────────────
-// Finds the DOMINANT eigenpair (largest absolute eigenvalue) of a dim×dim matrix
-// using the power iteration method.
-//
-// Seed strategy (deterministic, no RNG):
-//   v[j] = sum of column j of A.  This gives a non-trivial starting vector for
-//   most practical matrices, including symmetric positive-definite ones.
-//
-// Per iteration:
-//   1. w = A * v           (matrix–vector product)
-//   2. v = w / ||w||       (normalise to prevent overflow)
-//   3. lambda = v^T A v    (Rayleigh quotient — converges faster than ||w||/||v||)
-//
-// Convergence: |lambda_new - lambda_old| < 1e-9, or max_iter reached.
 bool calc_matrix_power_iteration(const double* A, uint32_t dim,
                                  double* out_eigenvec, double* out_eigenval,
                                  uint32_t max_iter) {
@@ -515,14 +469,12 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
         return false;
     }
 
-    // Use default iteration count when caller passes 0.
     if (max_iter == 0) {
         max_iter = 200;
     }
 
-    // --- Step 1: Seed vector = column sums of A (deterministic) ---
-    double v[MAX_MATRIX_DIM];    // current iterate
-    double w[MAX_MATRIX_DIM];    // workspace for A*v
+    double v[MAX_MATRIX_DIM];
+    double w[MAX_MATRIX_DIM];
 
     for (uint32_t j = 0; j < dim; ++j) {
         double col_sum = 0.0;
@@ -532,14 +484,12 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
         v[j] = col_sum;
     }
 
-    // Normalise the seed vector so we start with a unit vector.
     double seed_norm_sq = 0.0;
     for (uint32_t j = 0; j < dim; ++j) {
         seed_norm_sq += v[j] * v[j];
     }
     double seed_norm = math_sqrt(seed_norm_sq);
 
-    // Fallback seed: e_0 = [1, 0, 0, …] if column sums are all zero.
     if (seed_norm < 1e-12) {
         for (uint32_t j = 0; j < dim; ++j) {
             v[j] = (j == 0) ? 1.0 : 0.0;
@@ -552,10 +502,7 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
 
     double eigenval_old = 0.0;
 
-    // --- Step 2: Power iteration loop ---
     for (uint32_t iter = 0; iter < max_iter; ++iter) {
-
-        // w = A * v
         for (uint32_t i = 0; i < dim; ++i) {
             double sum = 0.0;
             for (uint32_t j = 0; j < dim; ++j) {
@@ -564,16 +511,14 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
             w[i] = sum;
         }
 
-        // Normalise w → v_new.  ||w|| is the raw eigenvalue estimate,
-        // but we use the Rayleigh quotient below for a better estimate.
         double norm_sq = 0.0;
         for (uint32_t i = 0; i < dim; ++i) {
-            norm_sq += w[i] * w[i];
+            size_t idx = i;
+            norm_sq += w[idx] * w[idx];
         }
         double norm = math_sqrt(norm_sq);
 
         if (norm < 1e-15) {
-            // w is the zero vector — A*v = 0, eigenvalue is 0.
             for (uint32_t j = 0; j < dim; ++j) {
                 out_eigenvec[j] = v[j];
             }
@@ -585,9 +530,6 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
             v[i] = w[i] / norm;
         }
 
-        // Rayleigh quotient: lambda = v^T * A * v = v^T * w (before normalising,
-        // w = A*v_old; after updating v = w/||w|| we recompute for accuracy).
-        // Recompute A*v with the freshly normalised v.
         double lambda = 0.0;
         for (uint32_t i = 0; i < dim; ++i) {
             double av_i = 0.0;
@@ -597,8 +539,7 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
             lambda += v[i] * av_i;
         }
 
-        // --- Convergence check ---
-        if (absolute_val(lambda - eigenval_old) < 1e-9) {
+        if (math_abs(lambda - eigenval_old) < 1e-9) {
             for (uint32_t j = 0; j < dim; ++j) {
                 out_eigenvec[j] = v[j];
             }
@@ -609,7 +550,6 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
         eigenval_old = lambda;
     }
 
-    // max_iter reached — return best estimate so far.
     for (uint32_t j = 0; j < dim; ++j) {
         out_eigenvec[j] = v[j];
     }
@@ -617,85 +557,44 @@ bool calc_matrix_power_iteration(const double* A, uint32_t dim,
     return true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// calc_matrix_eigenvalues_symmetric
-// ─────────────────────────────────────────────────────────────────────────────
-// Computes ALL eigenvalues of a real SYMMETRIC dim×dim matrix via QR iteration
-// with Wilkinson shift.
-//
-// IMPORTANT: Results are only meaningful for symmetric matrices (A == A^T).
-//   For non-symmetric matrices the algorithm may not converge to real eigenvalues.
-//
-// Algorithm (Francis QR iteration with Wilkinson shift):
-//   Initialise Ak = A.
-//   For each outer iteration k:
-//     mu = Ak[dim-1][dim-1]  (Wilkinson shift — last diagonal element)
-//     Shift: Bk = Ak - mu*I
-//     Factorise: Bk = Q * R  (Modified Gram-Schmidt, via calc_matrix_qr)
-//     Restore: Ak+1 = R * Q + mu*I
-//   The diagonal of the converged Ak contains the eigenvalues.
-//
-// Convergence: all |sub-diagonal elements| < 1e-9, or 100 outer iterations.
-//
-// Stack budget: Ak[64] + Q[64] + R[64] = 192 doubles = 1536 bytes — well within
-// the stack limits for an 8-wide matrix.
 bool calc_matrix_eigenvalues_symmetric(const double* A, uint32_t dim, double* eigenvalues) {
     if (dim > MAX_MATRIX_DIM || dim == 0 || !A || !eigenvalues) {
         return false;
     }
 
-    // Working copy of the matrix that we will transform in-place.
     double Ak[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
     double Q[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
     double R[MAX_MATRIX_DIM * MAX_MATRIX_DIM];
 
-    // Initialise Ak = A.
-    for (uint32_t i = 0; i < dim * dim; ++i) {
-        Ak[i] = A[i];
-    }
+    fast_memcpy(Ak, A, sizeof(double) * dim * dim);
 
-    // Outer QR iteration loop (at most 100 passes).
     for (uint32_t outer = 0; outer < 100; ++outer) {
-
-        // --- Wilkinson shift: mu = Ak[dim-1][dim-1] ---
         double mu = Ak[(dim - 1) * dim + (dim - 1)];
 
-        // --- Bk = Ak - mu*I ---
         for (uint32_t i = 0; i < dim; ++i) {
             Ak[i * dim + i] -= mu;
         }
 
-        // --- QR decomposition: Bk = Q * R ---
-        // calc_matrix_qr expects a rows×cols matrix; Ak is dim×dim here.
         if (!calc_matrix_qr(Ak, dim, dim, Q, R)) {
-            // Column became linearly dependent — matrix may already be (nearly)
-            // diagonal.  Restore the shift and stop.
             for (uint32_t i = 0; i < dim; ++i) {
                 Ak[i * dim + i] += mu;
             }
             break;
         }
 
-        // --- Ak+1 = R * Q + mu*I ---
-        // Compute R * Q and store back into Ak.
         for (uint32_t r = 0; r < dim; ++r) {
             for (uint32_t c = 0; c < dim; ++c) {
                 double sum = 0.0;
                 for (uint32_t k = 0; k < dim; ++k) {
-                    // R is dim×dim upper-triangular, Q is dim×dim orthogonal.
                     sum += R[r * dim + k] * Q[k * dim + c];
                 }
-                // Add the shift back on the diagonal to recover Ak+1.
                 Ak[r * dim + c] = sum + ((r == c) ? mu : 0.0);
             }
         }
 
-        // --- Convergence check: are all sub-diagonal elements negligible? ---
         int converged = 1;
         for (uint32_t i = 0; i < dim - 1; ++i) {
-            // For a symmetric matrix converging to diagonal form the sub-diagonal
-            // elements are the ones directly below the main diagonal.
-            if (absolute_val(Ak[(i + 1) * dim + i]) >= 1e-9) {
+            if (math_abs(Ak[(i + 1) * dim + i]) >= 1e-9) {
                 converged = 0;
                 break;
             }
@@ -705,7 +604,6 @@ bool calc_matrix_eigenvalues_symmetric(const double* A, uint32_t dim, double* ei
         }
     }
 
-    // Extract the diagonal of the (approximately) upper-triangular / diagonal Ak.
     for (uint32_t i = 0; i < dim; ++i) {
         eigenvalues[i] = Ak[i * dim + i];
     }
