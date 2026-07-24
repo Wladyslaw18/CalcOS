@@ -3,8 +3,8 @@
  * implementation to the Kernel HistoryAPI stable interface.
  */
 
-#include "../../Kernel/API/HistoryAPI.h"
-#include "../../Kernel/State/History.h"
+#include "Kernel/API/HistoryAPI.h"
+#include "Kernel/State/History.h"
 
 /* ─── Push wrapper ─── */
 static void adapter_push(CalculatorState* state, double a, double b,
