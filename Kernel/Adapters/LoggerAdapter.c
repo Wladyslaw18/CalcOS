@@ -7,9 +7,9 @@
  * every Kernel-aware component can log through kernel_get(K, KRN_LOGGER)
  * without depending on the Logger .c / .h directly.
  */
-#include "../../Kernel/API/LoggerAPI.h"
-#include "../../Infrastructure/Logging/Logger.h"
-#include "../../Infrastructure/Logging/LogLevel.h"
+#include "Kernel/API/LoggerAPI.h"
+#include "Infrastructure/Logging/Logger.h"
+#include "Infrastructure/Logging/LogLevel.h"
 
 /* Bridge LogLevelAPI (Kernel) → LogLevel (Infrastructure).
  * Both enums have the same values (DEBUG=0..FATAL=4) so direct cast is safe. */
