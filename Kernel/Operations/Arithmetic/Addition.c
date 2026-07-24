@@ -1,5 +1,6 @@
 #include "Addition.h"
 #include <immintrin.h>
+#include <stdint.h>
 
 // scalar fallback. no SIMD. works on anything. grandma's Pentium included.
 void add_scalar(CalculatorState* state, const double* a, const double* b, double* result, uint32_t count) {
@@ -13,11 +14,20 @@ void add_scalar(CalculatorState* state, const double* a, const double* b, double
 void add_sse(CalculatorState* state, const double* a, const double* b, double* result, uint32_t count) {
     (void)state;
     uint32_t i = 0;
-    for (; i + 1 < count; i += 2) {
-        __m128d va = _mm_loadu_pd(&a[i]);
-        __m128d vb = _mm_loadu_pd(&b[i]);
-        __m128d vr = _mm_add_pd(va, vb);
-        _mm_storeu_pd(&result[i], vr);
+    if ((((uintptr_t)a | (uintptr_t)b | (uintptr_t)result) & 15) == 0) {
+        for (; i + 1 < count; i += 2) {
+            __m128d va = _mm_load_pd(&a[i]);
+            __m128d vb = _mm_load_pd(&b[i]);
+            __m128d vr = _mm_add_pd(va, vb);
+            _mm_store_pd(&result[i], vr);
+        }
+    } else {
+        for (; i + 1 < count; i += 2) {
+            __m128d va = _mm_loadu_pd(&a[i]);
+            __m128d vb = _mm_loadu_pd(&b[i]);
+            __m128d vr = _mm_add_pd(va, vb);
+            _mm_storeu_pd(&result[i], vr);
+        }
     }
     // tail: leftover single element, can't fit in a 128-bit lane
     for (; i < count; ++i) {
@@ -31,18 +41,34 @@ void add_sse(CalculatorState* state, const double* a, const double* b, double* r
 void add_avx2(CalculatorState* state, const double* a, const double* b, double* result, uint32_t count) {
     (void)state;
     uint32_t i = 0;
-    for (; i + 3 < count; i += 4) {
-        __m256d va = _mm256_loadu_pd(&a[i]);
-        __m256d vb = _mm256_loadu_pd(&b[i]);
-        __m256d vr = _mm256_add_pd(va, vb);
-        _mm256_storeu_pd(&result[i], vr);
+    if ((((uintptr_t)a | (uintptr_t)b | (uintptr_t)result) & 31) == 0) {
+        for (; i + 3 < count; i += 4) {
+            __m256d va = _mm256_load_pd(&a[i]);
+            __m256d vb = _mm256_load_pd(&b[i]);
+            __m256d vr = _mm256_add_pd(va, vb);
+            _mm256_store_pd(&result[i], vr);
+        }
+    } else {
+        for (; i + 3 < count; i += 4) {
+            __m256d va = _mm256_loadu_pd(&a[i]);
+            __m256d vb = _mm256_loadu_pd(&b[i]);
+            __m256d vr = _mm256_add_pd(va, vb);
+            _mm256_storeu_pd(&result[i], vr);
+        }
     }
     // 2-element spillover: use SSE2 instead of burning 2 scalar ops
     if (i + 1 < count) {
-        __m128d va = _mm_loadu_pd(&a[i]);
-        __m128d vb = _mm_loadu_pd(&b[i]);
-        __m128d vr = _mm_add_pd(va, vb);
-        _mm_storeu_pd(&result[i], vr);
+        if ((((uintptr_t)&a[i] | (uintptr_t)&b[i] | (uintptr_t)&result[i]) & 15) == 0) {
+            __m128d va = _mm_load_pd(&a[i]);
+            __m128d vb = _mm_load_pd(&b[i]);
+            __m128d vr = _mm_add_pd(va, vb);
+            _mm_store_pd(&result[i], vr);
+        } else {
+            __m128d va = _mm_loadu_pd(&a[i]);
+            __m128d vb = _mm_loadu_pd(&b[i]);
+            __m128d vr = _mm_add_pd(va, vb);
+            _mm_storeu_pd(&result[i], vr);
+        }
         i += 2;
     }
     // final single-element cleanup
