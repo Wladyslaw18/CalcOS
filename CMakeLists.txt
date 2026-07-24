@@ -34,6 +34,7 @@ file(GLOB_RECURSE KERNEL_SOURCES
 file(GLOB_RECURSE INFRASTRUCTURE_SOURCES
     "Infrastructure/Utils/*.c"
     "Infrastructure/Config/*.c"
+    "Infrastructure/Logging/*.c"
 )
 file(GLOB_RECURSE APPLICATION_SOURCES
     "Application/Input/*.c"
@@ -44,12 +45,22 @@ file(GLOB_RECURSE APPLICATION_SOURCES
 file(GLOB SRC_SOURCES
     "src/*.c"
 )
+file(GLOB_RECURSE PLATFORM_SOURCES
+    "Platform/x86_64/*.c"
+)
 
 set(CALC_SOURCES
     ${KERNEL_SOURCES}
     ${INFRASTRUCTURE_SOURCES}
     ${APPLICATION_SOURCES}
     ${SRC_SOURCES}
+    ${PLATFORM_SOURCES}
+    src/kernel/wal.c
+    src/apps/CalculatorApp.c
+    src/kernel/db.c
+    src/kernel/disk_marshal.c
+    src/kernel/app_registry.c
+    src/apps/TetrisApp.c
 )
 
 file(GLOB_RECURSE KERNEL_HEADERS
@@ -88,7 +99,7 @@ set(CALC_HEADERS
 # ---------------------------------------------------------
 add_library(calc_static STATIC ${CALC_SOURCES} ${CALC_HEADERS})
 set_target_properties(calc_static PROPERTIES
-    OUTPUT_NAME "calc"
+    OUTPUT_NAME "calc_static"
     CLEAN_DIRECT_OUTPUT 1
 )
 
@@ -209,7 +220,7 @@ target_link_libraries(test_benchmark PRIVATE calc_static)
 target_include_directories(test_benchmark PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>)
 target_compile_definitions(test_benchmark PRIVATE HOST_APP=1)
 if(MSVC)
-    target_compile_options(test_benchmark PRIVATE /W3 /wd4100 /wd4210 /O2)
+    target_compile_options(test_benchmark PRIVATE /W3 /wd4100 /wd4210)
 endif()
 
 # Apply CALC_TINY_MEM size optimizations globally to all targets
