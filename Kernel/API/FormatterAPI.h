@@ -32,6 +32,9 @@ typedef struct {
 /* ─── Null Object ─── */
 extern const FormatterAPI ker_formatter_null;
 
+/* ─── Adapter Instance ─── */
+extern const FormatterAPI g_formatter_service;
+
 #ifdef __cplusplus
 }
 #endif

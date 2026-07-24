@@ -89,7 +89,7 @@ static void vga_puts(const char* str, int x, int y, uint8_t color) {
 // Port I/O for serial
 static inline void outb(uint16_t port, uint8_t val) {
 #if defined(__i386__) || defined(__x86_64__)
-    __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
+    __asm__ volatile ("outb %b0, %w1" : : "a"(val), "Nd"(port));
 #else
     (void)port; (void)val;
 #endif
@@ -97,7 +97,7 @@ static inline void outb(uint16_t port, uint8_t val) {
 static inline uint8_t inb(uint16_t port) {
 #if defined(__i386__) || defined(__x86_64__)
     uint8_t ret;
-    __asm__ volatile ("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    __asm__ volatile ("inb %w1, %b0" : "=a"(ret) : "Nd"(port));
     return ret;
 #else
     (void)port; return 0;

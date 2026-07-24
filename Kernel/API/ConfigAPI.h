@@ -30,6 +30,9 @@ typedef struct {
 /* ─── Null Object — returns default config, parse is no-op ─── */
 extern const ConfigAPI ker_config_null;
 
+/* ─── Adapter Instance ─── */
+extern const ConfigAPI g_config_service;
+
 #ifdef __cplusplus
 }
 #endif

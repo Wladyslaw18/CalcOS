@@ -3,9 +3,9 @@
  * implementation to the Kernel FormatterAPI stable interface.
  */
 
+#include <stdarg.h>
 #include "Kernel/API/FormatterAPI.h"
 #include "Application/Output/Formatter.h"
-#include <stdarg.h>
 
 /* ─── Format wrapper ─── */
 static size_t adapter_format(char* buf, size_t buf_size, const char* fmt, ...) {

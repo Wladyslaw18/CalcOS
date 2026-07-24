@@ -32,6 +32,9 @@ typedef struct {
 /* ─── Null Object ─── */
 extern const StackAPI ker_stack_null;
 
+/* ─── Adapter Instance ─── */
+extern const StackAPI g_stack_service;
+
 #ifdef __cplusplus
 }
 #endif

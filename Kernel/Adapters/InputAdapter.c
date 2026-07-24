@@ -12,6 +12,7 @@
  */
 
 #include "Kernel/API/InputAPI.h"
+#include "Kernel/Adapters/InputAdapter.h"
 #include "include/calc/input.h"
 
 /* ================================================================= */

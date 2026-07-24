@@ -65,12 +65,9 @@ void panic_abort(const char* message, const CpuRegisters* regs) {
     // port 0xCF9 > 0xFF so it can't use the immediate form of outb.
     // `outb %%al, $0xCF9` silently truncates to 0xF9 -- wrong port. use DX.
     __asm__ volatile (
-        "movl $0xCF9, %%edx\n\t"
-        "movb $0x0E, %%al\n\t"
-        "outb %%al, %%dx\n\t"
+        "outb %b0, %w1"
         :
-        :
-        : "eax", "edx"
+        : "a"((uint8_t)0x0E), "Nd"((uint16_t)0xCF9)
     );
 
     // brief delay -- let the reset propagate before trying the triple-fault fallback

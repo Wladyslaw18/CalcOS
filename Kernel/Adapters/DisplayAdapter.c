@@ -12,6 +12,7 @@
  */
 
 #include "Kernel/API/DisplayAPI.h"
+#include "Kernel/Adapters/DisplayAdapter.h"
 #include "include/calc/display.h"
 
 /* ================================================================= */

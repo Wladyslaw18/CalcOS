@@ -38,6 +38,9 @@ typedef struct {
 /* ─── Null Object (always returns 0.0, failure) ─── */
 extern const ParserAPI ker_parser_null;
 
+/* ─── Adapter Instance ─── */
+extern const ParserAPI g_parser_service;
+
 #ifdef __cplusplus
 }
 #endif

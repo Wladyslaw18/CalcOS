@@ -42,8 +42,11 @@ typedef struct {
 
 } LoggerAPI;
 
-/* ─── Null Object (silent discard) ─── */
+/* ─── Null Object (silent fallback) ─── */
 extern const LoggerAPI ker_logger_null;
+
+/* ─── Adapter Instance ─── */
+extern const LoggerAPI g_logger_service;
 
 #ifdef __cplusplus
 }

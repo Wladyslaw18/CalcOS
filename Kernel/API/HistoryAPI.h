@@ -41,6 +41,9 @@ typedef struct {
 /* ─── Null Object ─── */
 extern const HistoryAPI ker_history_null;
 
+/* ─── Adapter Instance ─── */
+extern const HistoryAPI g_history_service;
+
 #ifdef __cplusplus
 }
 #endif
