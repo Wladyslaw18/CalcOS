@@ -1,1 +1,87 @@
+# ═══════════════════════════════════════════════════════════════════════
+# .gitignore — Calc Engine Project
+#
+# DOGMA: If it's generated, compiled, cached, or vendor — it's OUT. 💀
+# ═══════════════════════════════════════════════════════════════════════
 
+# ── Build & Output artifacts ──
+build/
+Build/
+bin/
+obj/
+/Output/
+Tools/Scripts/Output/
+bench_runner
+test_runner
+calc_app
+calc_terminal
+calc_static
+calc_web.html
+calc_web.js
+calc_web.wasm
+build_output.txt
+
+# ── IDE & Editor files ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.swn
+.vscode/
+.idea/
+.gemini/
+*.user
+*.suo
+*.sdf
+*.opensdf
+*.vcxproj.user
+.codewhale/
+
+# ── Vendor & Tool state ──
+Tools/Portable/
+.deepseek/
+vcpkg/
+packages/
+node_modules/
+.vcpkg/
+
+# ── Python cache ──
+__pycache__/
+*.pyc
+*.pyo
+
+# ── Compiled / Binary artifacts ──
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.obj
+*.o
+*.iso
+*.bin
+*.wasm
+*.tlog
+*.lastbuildstate
+*.unsuccessfulbuild
+
+# ── NuGet / .NET ──
+DotNetPerf/bin/
+DotNetPerf/obj/
+packages/
+*.nupkg
+
+# ── CMake generated ──
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+!CMakeLists.txt
+
+# ── OS files ──
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── Scratch scripts ──
+scratch/
