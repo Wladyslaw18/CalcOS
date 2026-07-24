@@ -8,10 +8,15 @@ section .text
 global _start
 
 _start:
-    ; Disable interrupts
+    jmp 0x0000:.start_real
+
+.start_real:
     cli
     xor ax, ax
     mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
 
     ; Flex the screen: Write "CALC OS" directly to VGA text memory at 0xB800:0000 (physical 0xB8000)
     mov ax, 0xB800
@@ -24,24 +29,25 @@ _start:
     mov word [es:10], 0x0F4F  ; 'O'
     mov word [es:12], 0x0F53  ; 'S'
 
-    ; Initialize COM1 serial port
-    mov dx, 0x3F9          ; Disable all interrupts
+    ; Reset ES back to 0
+    xor ax, ax
+    mov es, ax
+
+    ; Initialize COM1 serial port (38400 baud, 8N1)
+    mov dx, 0x3F9          ; Disable interrupts
     mov al, 0x00
     out dx, al
-    mov dx, 0x3FB          ; Enable DLAB (set baud rate divisor)
+    mov dx, 0x3FB          ; Enable DLAB
     mov al, 0x80
     out dx, al
-    mov dx, 0x3F8          ; Set divisor to 3 (38400 baud)
+    mov dx, 0x3F8          ; Divisor low byte (3 = 38400 baud)
     mov al, 0x03
     out dx, al
     mov dx, 0x3F9          ; Divisor high byte
     mov al, 0x00
     out dx, al
-    mov dx, 0x3FB          ; 8 bits, no parity, one stop bit
+    mov dx, 0x3FB          ; 8 bits, no parity, 1 stop bit (clears DLAB)
     mov al, 0x03
-    out dx, al
-    mov dx, 0x3FC          ; Enable FIFO, clear them
-    mov al, 0xC7
     out dx, al
 
     ; Write boot message to serial port COM1 (0x3F8)
@@ -50,14 +56,7 @@ _start:
     lodsb
     test al, al
     jz .print_done
-    mov bl, al
-.wait_tx:
-    mov dx, 0x3FD          ; Line Status Register
-    in al, dx
-    test al, 0x20          ; Transmitter Holding Register Empty (bit 5)
-    jz .wait_tx
     mov dx, 0x3F8          ; Data register
-    mov al, bl
     out dx, al
     jmp .print_loop
 .print_done:
