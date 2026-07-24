@@ -68,16 +68,9 @@ int ui_init(UIDriver* self) {
     return 0;
 }
 
-// Default input processing
-// Maps key presses to calculator operations, calling the parser
-// when Enter is pressed and updating the operand stack/history.
-UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
-    if (!self || !self->calc_state) return UI_EVENT_NONE;
-
-    UIContext* ctx = (UIContext*)self->context;
-    if (!ctx) return UI_EVENT_NONE;
-
-    CalculatorState* calc = self->calc_state;
+// Internal helper doing the actual heavy lifting
+UIEvent ui_process_input_default_with_ctx(UIContext* ctx, CalculatorState* calc, uint32_t key, UIDriver* opt_self) {
+    if (!ctx || !calc) return UI_EVENT_NONE;
 
     switch (key) {
         case UI_KEY_ENTER: {
@@ -147,8 +140,8 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
             ctx->cursor = 0;
             fast_memset(ctx->buffer, 0, UI_INPUT_BUF_SIZE);
 
-            if (self->on_state_change) {
-                self->on_state_change(self, ctx->last_event);
+            if (opt_self && opt_self->on_state_change) {
+                opt_self->on_state_change(opt_self, ctx->last_event);
             }
             return ctx->last_event;
         }
@@ -162,8 +155,8 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
                 ctx->cursor--;
                 ctx->buffer[ctx->length] = '\0';
                 ctx->last_event = UI_EVENT_INPUT_CHANGE;
-                if (self->on_state_change) {
-                    self->on_state_change(self, UI_EVENT_INPUT_CHANGE);
+                if (opt_self && opt_self->on_state_change) {
+                    opt_self->on_state_change(opt_self, UI_EVENT_INPUT_CHANGE);
                 }
             }
             return ctx->last_event;
@@ -177,8 +170,8 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
                 ctx->length--;
                 ctx->buffer[ctx->length] = '\0';
                 ctx->last_event = UI_EVENT_INPUT_CHANGE;
-                if (self->on_state_change) {
-                    self->on_state_change(self, UI_EVENT_INPUT_CHANGE);
+                if (opt_self && opt_self->on_state_change) {
+                    opt_self->on_state_change(opt_self, UI_EVENT_INPUT_CHANGE);
                 }
             }
             return ctx->last_event;
@@ -213,8 +206,8 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
                         ctx->length++;
                     ctx->cursor = ctx->length;
                     ctx->last_event = UI_EVENT_INPUT_CHANGE;
-                    if (self->on_state_change) {
-                        self->on_state_change(self, UI_EVENT_INPUT_CHANGE);
+                    if (opt_self && opt_self->on_state_change) {
+                        opt_self->on_state_change(opt_self, UI_EVENT_INPUT_CHANGE);
                     }
                 }
             }
@@ -239,8 +232,8 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
                 ctx->cursor = 0;
                 ctx->last_event = UI_EVENT_INPUT_CHANGE;
             }
-            if (self->on_state_change) {
-                self->on_state_change(self, UI_EVENT_INPUT_CHANGE);
+            if (opt_self && opt_self->on_state_change) {
+                opt_self->on_state_change(opt_self, UI_EVENT_INPUT_CHANGE);
             }
             return ctx->last_event;
         }
@@ -251,8 +244,8 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
             ctx->history_pos = -1;
             fast_memset(ctx->buffer, 0, UI_INPUT_BUF_SIZE);
             ctx->last_event = UI_EVENT_CLEAR;
-            if (self->on_state_change) {
-                self->on_state_change(self, UI_EVENT_CLEAR);
+            if (opt_self && opt_self->on_state_change) {
+                opt_self->on_state_change(opt_self, UI_EVENT_CLEAR);
             }
             return ctx->last_event;
         }
@@ -271,8 +264,8 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
                     ctx->cursor++;
                     ctx->buffer[ctx->length] = '\0';
                     ctx->last_event = UI_EVENT_INPUT_CHANGE;
-                    if (self->on_state_change) {
-                        self->on_state_change(self, UI_EVENT_INPUT_CHANGE);
+                    if (opt_self && opt_self->on_state_change) {
+                        opt_self->on_state_change(opt_self, UI_EVENT_INPUT_CHANGE);
                     }
                 }
             }
@@ -281,6 +274,14 @@ UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
     }
 
     return UI_EVENT_NONE;
+}
+
+// Default input processing
+// Maps key presses to calculator operations, calling the parser
+// when Enter is pressed and updating the operand stack/history.
+UIEvent ui_process_input_default(UIDriver* self, uint32_t key) {
+    if (!self || !self->calc_state) return UI_EVENT_NONE;
+    return ui_process_input_default_with_ctx((UIContext*)self->context, self->calc_state, key, self);
 }
 
 // Default full render

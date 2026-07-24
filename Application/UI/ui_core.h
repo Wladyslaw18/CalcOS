@@ -32,6 +32,9 @@ int ui_init(UIDriver* self);
 // Default input processor maps keycodes to calculator operations
 UIEvent ui_process_input_default(UIDriver* self, uint32_t key);
 
+// Context-explicit input processor for exokernel apps
+UIEvent ui_process_input_default_with_ctx(UIContext* ctx, CalculatorState* calc, uint32_t key, UIDriver* opt_self);
+
 // Full re-render of all calculator UI elements
 void ui_render_default(const UIDriver* self);
 
