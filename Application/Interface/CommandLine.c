@@ -87,9 +87,9 @@ static void execute_command(CommandLineState* cli, CalculatorState* calc) {
 
             uint8_t mode = calc ? calc->mode : (uint8_t)0;
             if (mode == 1) {
-                format_string(result_buf, sizeof(result_buf), "Result: %d", (int64_t)res);
+                format_string(result_buf, sizeof(result_buf), "Result: %lld", (long long)res);
             } else if (mode == 2) {
-                format_string(result_buf, sizeof(result_buf), "Result: 0x%X", (uint64_t)res);
+                format_string(result_buf, sizeof(result_buf), "Result: 0x%llX", (unsigned long long)res);
             } else {
                 format_string(result_buf, sizeof(result_buf), "Result: %f", res);
             }
