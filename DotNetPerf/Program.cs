@@ -5,20 +5,90 @@ using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using System.Runtime.Intrinsics.X86;
 using System.Runtime.Intrinsics.Arm;
+using System.Threading;
 
 namespace DotNetPerf
 {
-    // STACK-ALLOCATED, CACHE-ALIGNED MEMORY BLOCK. NO GC HEAP PRESSURE
+    // 64-byte cache-aligned state matching core C kernel memory layout
     [StructLayout(LayoutKind.Sequential, Pack = 64)]
     public unsafe struct CalculatorState
     {
-        public fixed double Operands[4]; // 32 bytes
-        public byte OpCount;            // 1 byte
-        public byte CurrentOp;          // 1 byte
-        public byte Flags;              // 1 byte
-        public byte Mode;               // 1 byte
-        public uint HistoryIdx;         // 4 bytes
-        private fixed byte _pad[24];    // 24 bytes - PAD TO 64 BYTES OR DIE
+        public fixed double Operands[4];
+        public byte OpCount;
+        public byte CurrentOp;
+        public byte Flags;
+        public byte Mode;
+        public uint HistoryIdx;
+        private fixed byte _pad[24];
+    }
+
+    // 64-byte render vertex point compatible with GPU VBO layout
+    [StructLayout(LayoutKind.Sequential, Pack = 64)]
+    public unsafe struct RenderPoint
+    {
+        public double X;
+        public double Y;
+        public double Z;
+        public float ColorR;
+        public float ColorG;
+        public float ColorB;
+        public float ColorA;
+        private fixed byte _pad[24];
+    }
+
+    // Lock-free atomic ring buffer with 64-byte padded head/tail pointers to prevent false sharing
+    public unsafe struct LockFreeRingBuffer
+    {
+        public const int Capacity = 1024;
+
+        private fixed long _head[8];
+        private fixed long _tail[8];
+        private RenderPoint* _buffer;
+
+        public static LockFreeRingBuffer Create()
+        {
+            LockFreeRingBuffer q = default;
+            q._buffer = (RenderPoint*)NativeMemory.AlignedAlloc((nuint)(Capacity * sizeof(RenderPoint)), 64);
+            Unsafe.InitBlock(q._buffer, 0, (uint)(Capacity * sizeof(RenderPoint)));
+            return q;
+        }
+
+        public void Free()
+        {
+            if (_buffer != null)
+            {
+                NativeMemory.AlignedFree(_buffer);
+                _buffer = null;
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryPush(in RenderPoint point)
+        {
+            long currentTail = Volatile.Read(ref _tail[0]);
+            long currentHead = Volatile.Read(ref _head[0]);
+            if (currentTail - currentHead >= Capacity) return false;
+
+            _buffer[currentTail % Capacity] = point;
+            Volatile.Write(ref _tail[0], currentTail + 1);
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool TryPop(out RenderPoint point)
+        {
+            long currentHead = Volatile.Read(ref _head[0]);
+            long currentTail = Volatile.Read(ref _tail[0]);
+            if (currentHead >= currentTail)
+            {
+                point = default;
+                return false;
+            }
+
+            point = _buffer[currentHead % Capacity];
+            Volatile.Write(ref _head[0], currentHead + 1);
+            return true;
+        }
     }
 
     public static unsafe class Program
@@ -28,96 +98,119 @@ namespace DotNetPerf
 
         public static void Main()
         {
-            Console.WriteLine("=== DOTNET 10 UNMANAGED SIMD CALCULATOR ENGINE ===");
-            Console.WriteLine($"AVX2 Supported: {Avx2.IsSupported}");
-            Console.WriteLine($"SSE2 Supported: {Sse2.IsSupported}");
-            Console.WriteLine($"ARM NEON Supported: {AdvSimd.IsSupported}");
-            Console.WriteLine($"Is64BitProcess: {Environment.Is64BitProcess}");
+            Console.WriteLine("=== SIMD ENGINE & BENCHMARK HARNESS ===");
+            Console.WriteLine($"Vector512 Supported : {Vector512.IsHardwareAccelerated}");
+            Console.WriteLine($"AVX2 Supported      : {Avx2.IsSupported}");
+            Console.WriteLine($"SSE2 Supported      : {Sse2.IsSupported}");
+            Console.WriteLine($"ARM NEON Supported  : {AdvSimd.IsSupported}");
+            Console.WriteLine($"Is64BitProcess      : {Environment.Is64BitProcess}");
 
-            // Statically allocate buffers on the stack or native heap. Zero GC allocation!
             double* inputA = (double*)NativeMemory.AlignedAlloc((nuint)(ArraySize * sizeof(double)), 64);
             double* inputB = (double*)NativeMemory.AlignedAlloc((nuint)(ArraySize * sizeof(double)), 64);
             double* outputRes = (double*)NativeMemory.AlignedAlloc((nuint)(ArraySize * sizeof(double)), 64);
 
+            LockFreeRingBuffer ringBuffer = LockFreeRingBuffer.Create();
+
             try
             {
-                // Init data
                 for (int i = 0; i < ArraySize; i++)
                 {
                     inputA[i] = i * 0.1;
                     inputB[i] = i * 0.2;
                 }
 
-                // Stack-allocate the CalculatorState
                 CalculatorState state = default;
+                state.Mode = 1;
 
-                // Warm-up to JIT compile hot paths
-                AddScalar(&state, inputA, inputB, outputRes, ArraySize);
-                if (Avx2.IsSupported) AddAvx2(&state, inputA, inputB, outputRes, ArraySize);
-                if (Sse2.IsSupported) AddSse2(&state, inputA, inputB, outputRes, ArraySize);
-                if (AdvSimd.IsSupported) AddArmNeon(&state, inputA, inputB, outputRes, ArraySize);
+                AddScalar(inputA, inputB, outputRes, ArraySize);
+                if (Sse2.IsSupported) AddSse2(inputA, inputB, outputRes, ArraySize);
+                if (Avx2.IsSupported) AddAvx2Unrolled(inputA, inputB, outputRes, ArraySize);
+                if (AdvSimd.IsSupported) AddArmNeon(inputA, inputB, outputRes, ArraySize);
 
-                // Benchmark Scalar
                 var sw = Stopwatch.StartNew();
                 for (int i = 0; i < Iterations; i++)
                 {
-                    AddScalar(&state, inputA, inputB, outputRes, ArraySize);
+                    AddScalar(inputA, inputB, outputRes, ArraySize);
                 }
                 sw.Stop();
                 long scalarTicks = sw.ElapsedTicks;
-                Console.WriteLine($"\nScalar Fallback Time: {sw.ElapsedMilliseconds} ms ({scalarTicks} ticks)");
+                Console.WriteLine($"\nScalar Fallback Time       : {sw.ElapsedMilliseconds} ms ({scalarTicks} ticks)");
 
                 if (Sse2.IsSupported)
                 {
-                    // Benchmark SSE2
                     sw = Stopwatch.StartNew();
                     for (int i = 0; i < Iterations; i++)
                     {
-                        AddSse2(&state, inputA, inputB, outputRes, ArraySize);
+                        AddSse2(inputA, inputB, outputRes, ArraySize);
                     }
                     sw.Stop();
                     long sseTicks = sw.ElapsedTicks;
-                    Console.WriteLine($"SSE2 Vectorized Time: {sw.ElapsedMilliseconds} ms ({sseTicks} ticks) - Speedup: {(double)scalarTicks / sseTicks:F2}x");
+                    Console.WriteLine($"SSE2 Vectorized Time       : {sw.ElapsedMilliseconds} ms ({sseTicks} ticks) - Speedup: {(double)scalarTicks / sseTicks:F2}x");
                 }
 
                 if (Avx2.IsSupported)
                 {
-                    // Benchmark AVX2
                     sw = Stopwatch.StartNew();
                     for (int i = 0; i < Iterations; i++)
                     {
-                        AddAvx2(&state, inputA, inputB, outputRes, ArraySize);
+                        AddAvx2Unrolled(inputA, inputB, outputRes, ArraySize);
                     }
                     sw.Stop();
                     long avx2Ticks = sw.ElapsedTicks;
-                    Console.WriteLine($"AVX2 Vectorized Time: {sw.ElapsedMilliseconds} ms ({avx2Ticks} ticks) - Speedup: {(double)scalarTicks / avx2Ticks:F2}x 🔥");
+                    Console.WriteLine($"AVX2 Unrolled (4x) Time     : {sw.ElapsedMilliseconds} ms ({avx2Ticks} ticks) - Speedup: {(double)scalarTicks / avx2Ticks:F2}x");
                 }
 
                 if (AdvSimd.IsSupported)
                 {
-                    // Benchmark ARM NEON
                     sw = Stopwatch.StartNew();
                     for (int i = 0; i < Iterations; i++)
                     {
-                        AddArmNeon(&state, inputA, inputB, outputRes, ArraySize);
+                        AddArmNeon(inputA, inputB, outputRes, ArraySize);
                     }
                     sw.Stop();
                     long neonTicks = sw.ElapsedTicks;
-                    Console.WriteLine($"ARM NEON Vectorized Time: {sw.ElapsedMilliseconds} ms ({neonTicks} ticks) - Speedup: {(double)scalarTicks / neonTicks:F2}x 🔥");
+                    Console.WriteLine($"ARM NEON Vectorized Time    : {sw.ElapsedMilliseconds} ms ({neonTicks} ticks) - Speedup: {(double)scalarTicks / neonTicks:F2}x");
                 }
+
+                Console.WriteLine("\n=== ZERO-ALLOCATION RPN EXPRESSION ENGINE ===");
+                ReadOnlySpan<char> expr = "(3 + 5) * (10 - 2) / 4.0";
+                Span<RpnToken> rpnQueue = stackalloc RpnToken[32];
+
+                sw = Stopwatch.StartNew();
+                double exprResult = 0.0;
+                for (int i = 0; i < Iterations; i++)
+                {
+                    if (InfixToRpn(expr, rpnQueue, out int tokenCount))
+                    {
+                        exprResult = EvaluateRpn(rpnQueue, tokenCount);
+                    }
+                }
+                sw.Stop();
+                Console.WriteLine($"Expression: \"{expr.ToString()}\" => Result: {exprResult}");
+                Console.WriteLine($"RPN Parse + Eval ({Iterations} runs): {sw.ElapsedMilliseconds} ms ({sw.ElapsedTicks} ticks)");
+
+                Console.WriteLine("\n=== LOCK-FREE RING BUFFER PIPELINE STREAM ===");
+                sw = Stopwatch.StartNew();
+                int pushedCount = 0;
+                for (int i = 0; i < LockFreeRingBuffer.Capacity; i++)
+                {
+                    RenderPoint pt = new RenderPoint { X = i * 0.01, Y = outputRes[i], Z = 0.0, ColorR = 0.0f, ColorG = 0.95f, ColorB = 1.0f, ColorA = 1.0f };
+                    if (ringBuffer.TryPush(in pt)) pushedCount++;
+                }
+                sw.Stop();
+                Console.WriteLine($"Lock-Free Atomic Push ({pushedCount} points) : {sw.ElapsedMilliseconds} ms ({sw.ElapsedTicks} ticks)");
             }
             finally
             {
-                // Free native memory. Keep memory usage at flat 0 bytes leaked!
+                ringBuffer.Free();
                 NativeMemory.AlignedFree(inputA);
                 NativeMemory.AlignedFree(inputB);
                 NativeMemory.AlignedFree(outputRes);
             }
         }
 
-        // [MethodImpl(MethodImplOptions.AggressiveInlining)] prevents call instruction jump overheads!
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void AddScalar(CalculatorState* state, double* a, double* b, double* result, int count)
+        public static void AddScalar(double* a, double* b, double* result, int count)
         {
             for (int i = 0; i < count; i++)
             {
@@ -126,10 +219,9 @@ namespace DotNetPerf
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void AddSse2(CalculatorState* state, double* a, double* b, double* result, int count)
+        public static void AddSse2(double* a, double* b, double* result, int count)
         {
             int i = 0;
-            // 128-bit vector = 2 doubles at a time
             for (; i + 1 < count; i += 2)
             {
                 Vector128<double> va = Vector128.Load(a + i);
@@ -137,7 +229,6 @@ namespace DotNetPerf
                 Vector128<double> vr = va + vb;
                 vr.Store(result + i);
             }
-            // Tail cleanup
             for (; i < count; i++)
             {
                 result[i] = a[i] + b[i];
@@ -145,27 +236,33 @@ namespace DotNetPerf
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void AddAvx2(CalculatorState* state, double* a, double* b, double* result, int count)
+        public static void AddAvx2Unrolled(double* a, double* b, double* result, int count)
         {
             int i = 0;
-            // 256-bit vector = 4 doubles at a time
+            for (; i + 15 < count; i += 16)
+            {
+                Vector256<double> va0 = Vector256.Load(a + i);
+                Vector256<double> vb0 = Vector256.Load(b + i);
+                Vector256<double> va1 = Vector256.Load(a + i + 4);
+                Vector256<double> vb1 = Vector256.Load(b + i + 4);
+                Vector256<double> va2 = Vector256.Load(a + i + 8);
+                Vector256<double> vb2 = Vector256.Load(b + i + 8);
+                Vector256<double> va3 = Vector256.Load(a + i + 12);
+                Vector256<double> vb3 = Vector256.Load(b + i + 12);
+
+                Vector256.Store(va0 + vb0, result + i);
+                Vector256.Store(va1 + vb1, result + i + 4);
+                Vector256.Store(va2 + vb2, result + i + 8);
+                Vector256.Store(va3 + vb3, result + i + 12);
+            }
+
             for (; i + 3 < count; i += 4)
             {
                 Vector256<double> va = Vector256.Load(a + i);
                 Vector256<double> vb = Vector256.Load(b + i);
-                Vector256<double> vr = va + vb;
-                vr.Store(result + i);
+                Vector256.Store(va + vb, result + i);
             }
-            // SSE Cleanup
-            if (i + 1 < count)
-            {
-                Vector128<double> va = Vector128.Load(a + i);
-                Vector128<double> vb = Vector128.Load(b + i);
-                Vector128<double> vr = va + vb;
-                vr.Store(result + i);
-                i += 2;
-            }
-            // Tail cleanup
+
             for (; i < count; i++)
             {
                 result[i] = a[i] + b[i];
@@ -173,18 +270,16 @@ namespace DotNetPerf
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void AddArmNeon(CalculatorState* state, double* a, double* b, double* result, int count)
+        public static void AddArmNeon(double* a, double* b, double* result, int count)
         {
             int i = 0;
-            // ARM NEON registers are 128-bit = 2 doubles at a time
             for (; i + 1 < count; i += 2)
             {
                 Vector128<double> va = Vector128.Load(a + i);
                 Vector128<double> vb = Vector128.Load(b + i);
-                Vector128<double> vr = va + vb; // Emits NEON instructions on ARM64!
+                Vector128<double> vr = va + vb;
                 vr.Store(result + i);
             }
-            // Tail cleanup
             for (; i < count; i++)
             {
                 result[i] = a[i] + b[i];
@@ -204,11 +299,11 @@ namespace DotNetPerf
             [FieldOffset(0)] public char Op;
         }
 
-        [StructLayout(LayoutKind.Sequential)]
+        [StructLayout(LayoutKind.Sequential, Pack = 8)]
         public struct RpnToken
         {
-            public RpnTokenType Type;
             public RpnTokenData Data;
+            public RpnTokenType Type;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -225,25 +320,15 @@ namespace DotNetPerf
 
                 if (char.IsDigit(c) || c == '.')
                 {
-                    // Parse number block
-                    double val = 0.0;
-                    double divisor = 1.0;
-                    bool decimalPoint = false;
+                    int start = i;
                     while (i < infix.Length && (char.IsDigit(infix[i]) || infix[i] == '.'))
                     {
-                        if (infix[i] == '.') decimalPoint = true;
-                        else
-                        {
-                            if (!decimalPoint) val = val * 10.0 + (infix[i] - '0');
-                            else
-                            {
-                                divisor *= 10.0;
-                                val += (infix[i] - '0') / divisor;
-                            }
-                        }
                         i++;
                     }
-                    i--; // Backtrack index
+                    int length = i - start;
+                    i--;
+
+                    if (!double.TryParse(infix.Slice(start, length), out double val)) return false;
 
                     if (tokenCount >= rpnQueue.Length) return false;
                     rpnQueue[tokenCount++] = new RpnToken 
@@ -256,6 +341,7 @@ namespace DotNetPerf
 
                 if (c == '(')
                 {
+                    if (opTop + 1 >= opStack.Length) return false;
                     opStack[++opTop] = '(';
                     continue;
                 }
@@ -264,25 +350,28 @@ namespace DotNetPerf
                 {
                     while (opTop >= 0 && opStack[opTop] != '(')
                     {
+                        if (tokenCount >= rpnQueue.Length) return false;
                         rpnQueue[tokenCount++] = new RpnToken 
                         { 
                             Type = RpnTokenType.Operator, 
                             Data = new RpnTokenData { Op = opStack[opTop--] } 
                         };
                     }
-                    opTop--; // pop '('
+                    if (opTop < 0) return false;
+                    opTop--;
                     continue;
                 }
 
                 if (c == '+' || c == '-' || c == '*' || c == '/')
                 {
-                    int prec = c == '*' || c == '/' ? 2 : 1;
+                    int prec = (c == '*' || c == '/') ? 2 : 1;
                     while (opTop >= 0 && opStack[opTop] != '(')
                     {
                         char topOp = opStack[opTop];
-                        int topPrec = topOp == '*' || topOp == '/' ? 2 : 1;
+                        int topPrec = (topOp == '*' || topOp == '/') ? 2 : 1;
                         if (topPrec >= prec)
                         {
+                            if (tokenCount >= rpnQueue.Length) return false;
                             rpnQueue[tokenCount++] = new RpnToken 
                             { 
                                 Type = RpnTokenType.Operator, 
@@ -291,12 +380,15 @@ namespace DotNetPerf
                         }
                         else break;
                     }
+                    if (opTop + 1 >= opStack.Length) return false;
                     opStack[++opTop] = c;
                 }
             }
 
             while (opTop >= 0)
             {
+                if (opStack[opTop] == '(') return false;
+                if (tokenCount >= rpnQueue.Length) return false;
                 rpnQueue[tokenCount++] = new RpnToken 
                 { 
                     Type = RpnTokenType.Operator, 
@@ -315,13 +407,15 @@ namespace DotNetPerf
 
             for (int i = 0; i < tokenCount; i++)
             {
-                var token = rpnQueue[i];
+                ref readonly var token = ref rpnQueue[i];
                 if (token.Type == RpnTokenType.Number)
                 {
+                    if (evalTop + 1 >= evalStack.Length) return double.NaN;
                     evalStack[++evalTop] = token.Data.Value;
                 }
                 else
                 {
+                    if (evalTop < 1) return double.NaN;
                     double v2 = evalStack[evalTop--];
                     double v1 = evalStack[evalTop--];
                     double res = token.Data.Op switch
@@ -336,7 +430,7 @@ namespace DotNetPerf
                 }
             }
 
-            return evalStack[0];
+            return evalTop == 0 ? evalStack[0] : double.NaN;
         }
     }
 }

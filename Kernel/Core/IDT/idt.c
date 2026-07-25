@@ -10,6 +10,7 @@
  */
 
 #include "../../../include/calc/idt.h"
+#include <string.h>
 
 #ifndef _MSC_VER
 
@@ -246,10 +247,7 @@ static void set_idt_entry(int vec, void* handler, uint8_t type_attr, uint8_t ist
 // Initialize IDT
 void idt_init(void) {
     // Zero out the entire IDT (all entries start as "not present")
-    for (int i = 0; i < IDT_SIZE; i++) {
-        *(uint64_t*)&idt[i] = 0;
-        *(uint64_t*)((char*)&idt[i] + 8) = 0;
-    }
+    memset(idt, 0, sizeof(idt));
 
     // Install exception handlers (type_attr = 0x8E: 32-bit trap gate, present, ring 0)
     // In 64-bit mode: Interrupt Gate (DPL=0, Present, 0-size for 64-bit)

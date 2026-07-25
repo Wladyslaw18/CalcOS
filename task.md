@@ -1,6 +1,6 @@
 # CalcOS Expansion Task List
 
-## Infrastructure (ChaoticJS — Direct)
+## Infrastructure Tasks
 - [x] CMakeLists.txt if(MSVC) bug fix
 - [x] Kernel.h stable null-proxy upgrade
 - [x] Kernel.c g_kernel_null_proxies table
@@ -12,33 +12,33 @@
 - [x] Kernel.c — kernel_log() fix (route through KRN_LOGGER when live)
 - [x] ODE.c — silent truncation → set error flag on state
 
-## Agent 1 — NumberTheory expansion
+## NumberTheory Expansion
 - [x] euler_totient(n)
 - [x] extended_gcd(a, b, x, y)
 - [x] mod_inverse(a, m)
 - [x] chinese_remainder(r[], m[], count, result)
 - [x] next_prime(n)
 
-## Agent 2 — RNG expansion
+## RNG Expansion
 - [x] calc_random_poisson(lambda)
 - [x] calc_random_gamma(shape, scale)
 - [x] calc_random_bernoulli(p)
 - [x] calc_random_get_state() / calc_random_set_state()
 - [x] Box-Muller with cached 2nd sample & xoshiro256++ core
 
-## Agent 3 — ComplexOps expansion
+## ComplexOps Expansion
 - [x] complex_exp(z)
 - [x] complex_log(z)
 - [x] complex_pow(base, exp)
 - [x] complex_sqrt(z)
 
-## Agent 4 — Statistics expansion
+## Statistics Expansion
 - [x] calc_percentile(arr, len, p)
 - [x] calc_skewness(arr, len)
 - [x] calc_kurtosis(arr, len)
 - [x] calc_linear_regression(x, y, n, slope, intercept)
 
-## Agent 5 — Units expansion
+## Units Expansion
 - [x] Time (s, ms, μs, min, hr, day)
 - [x] Speed (m/s, km/h, mph, knots)
 - [x] Energy (J, kJ, cal, kcal, eV)
@@ -48,11 +48,12 @@
 - [x] Angle (rad, deg, grad)
 - [x] Power (W, kW, hp)
 
-## Agent 6 — Calculus/ODE expansion
+## Calculus/ODE Expansion
 - [x] gradient(f, x[], n, h, out[])
 - [x] jacobian(f[], m, x[], n, h, out[m*n])
 - [x] ODE_RK45 adaptive step (Dormand-Prince)
 
-## Agent 7 — LinearAlgebra eigenvalues
+## LinearAlgebra Eigenvalues Expansion
 - [x] calc_matrix_eigenvalues(A, dim, eigenvals[])
 - [x] calc_matrix_power_iteration(A, dim, out_vec[], out_val)
+
