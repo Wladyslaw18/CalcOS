@@ -67,7 +67,7 @@ const uint8_t* math_symbols_get_glyph(char c) {
     }
     
     // Custom mappings for specific math glyph symbols or uppercase indicator letters
-    switch (c) {
+    switch ((unsigned char)c) {
         case 'I': // Integral indicator or placeholder
         case 0xF4: // Alternate integral char code
             return GLYPH_INTEGRAL;

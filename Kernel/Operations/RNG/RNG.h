@@ -7,7 +7,9 @@
 #ifndef RNG_H
 #define RNG_H
 
+#include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 /* ------------------------------------------------------------------ */
 /*  Core / seeding                                                      */

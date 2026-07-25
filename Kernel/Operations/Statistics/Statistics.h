@@ -7,7 +7,9 @@
 #ifndef STATISTICS_H
 #define STATISTICS_H
 
+#include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 double calc_mean(const double* arr, uint32_t len);
 double calc_median(double* arr, uint32_t len);

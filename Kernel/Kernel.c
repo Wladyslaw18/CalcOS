@@ -11,6 +11,10 @@
  *   5. kernel_shutdown_all()  — Deactivate all, prepare for reboot
  */
 
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdarg.h>
 #include "Kernel.h"
 
 /* ─── Global Kernel instance ─── */
@@ -270,7 +274,7 @@ void kernel_init(Kernel* krn, CalculatorState* calc_state) {
     if (!krn) return;
 
     /* Zero everything — including all service entries and masks */
-    for (uint32_t i = 0; i < KRN_COUNT; ++i) {
+    for (uint32_t i = 0; i < (uint32_t)KRN_COUNT; ++i) {
         krn->services[i].name = NULL;
         krn->services[i].instance = NULL;
         krn->services[i].flags = 0;
@@ -340,7 +344,7 @@ void kernel_shutdown_all(Kernel* krn) {
     }
 
     /* Clear registry (allows re-init) */
-    for (uint32_t i = 0; i < KRN_COUNT; ++i) {
+    for (uint32_t i = 0; i < (uint32_t)KRN_COUNT; ++i) {
         krn->services[i].name = NULL;
         krn->services[i].instance = NULL;
         krn->services[i].flags = 0;
@@ -364,7 +368,7 @@ void* kernel_get_by_name(const Kernel* krn, const char* name) {
         query_hash *= 16777619u;
     }
 
-    for (uint32_t i = 0; i < KRN_COUNT; ++i) {
+    for (uint32_t i = 0; i < (uint32_t)KRN_COUNT; ++i) {
         uint64_t bit = 1ULL << i;
         if ((krn->registered_mask & bit) && (krn->active_mask & bit)) {
             if (krn->services[i].name) {

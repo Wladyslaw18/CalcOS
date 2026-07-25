@@ -43,6 +43,9 @@ typedef struct {
 enum { BTN_UP = 0, BTN_DOWN = 1, BTN_BACK = 2, BTN_ENTER = 3 };
 
 // GPIO pin to button index
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
 static int gpio_to_btn_idx(uint8_t pin) {
     switch (pin) {
         case BTN_UP_PIN:    return BTN_UP;

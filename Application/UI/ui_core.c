@@ -92,8 +92,10 @@ UIEvent ui_process_input_default_with_ctx(UIContext* ctx, CalculatorState* calc,
                 ctx->history_count++;
             }
             // Shift history
-            for (uint32_t i = ctx->history_count - 1; i > 0; i--) {
-                fast_memcpy(ctx->history[i], ctx->history[i - 1], UI_INPUT_BUF_SIZE);
+            if (ctx->history_count > 0) {
+                for (uint32_t i = ctx->history_count - 1; i > 0; i--) {
+                    fast_memcpy(ctx->history[i], ctx->history[i - 1], UI_INPUT_BUF_SIZE);
+                }
             }
             fast_memcpy(ctx->history[0], ctx->buffer, UI_INPUT_BUF_SIZE);
 

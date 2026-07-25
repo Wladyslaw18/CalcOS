@@ -7,6 +7,7 @@
 #ifndef LINEAR_ALGEBRA_H
 #define LINEAR_ALGEBRA_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include "../../State/CalculatorState.h"

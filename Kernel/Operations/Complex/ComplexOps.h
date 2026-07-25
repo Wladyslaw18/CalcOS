@@ -1,6 +1,9 @@
 #ifndef COMPLEX_OPS_H
 #define COMPLEX_OPS_H
 
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include "../../State/NumericValue.h"
 #include "../../../Infrastructure/Utils/MathUtils.h"
 

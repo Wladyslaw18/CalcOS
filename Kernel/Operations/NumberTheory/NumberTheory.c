@@ -1,4 +1,5 @@
 #include "NumberTheory.h"
+#include <stddef.h>
 
 // ctzll: count trailing zeros on uint64. essential for binary GCD.
 // GCC/Clang: __builtin_ctzll compiles to a single BSF/TZCNT instruction.
